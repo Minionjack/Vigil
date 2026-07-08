@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vigil — The AI Trainer That Notices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0A0A0F;
+    --surface:#141419;
+    --surface-2:#1C1C24;
+    --border:#2A2A34;
+    --text:#F2F1F7;
+    --text-dim:#96959f;
+    --text-faint:#5c5b66;
+    --violet:#7C6FFF;
+    --violet-dim:#463f8f;
+    --mint:#4CE0B3;
+    --amber:#F5A623;
+    --coral:#FF7A5C;
+    --red:#FF6B6B;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+    --container: 1160px;
+  }
+  *,*::before,*::after{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--void);
+    color:var(--text);
+    font-family:var(--font-body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit; text-decoration:none;}
+  img,svg{display:block;}
+  button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit;}
+  input{font-family:inherit;}
+  ::selection{background:var(--violet); color:#0A0A0F;}
+  *:focus-visible{outline:2px solid var(--violet); outline-offset:3px; border-radius:4px;}
+
+  .wrap{max-width:var(--container); margin:0 auto; padding:0 32px;}
+
+  .eyebrow{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:0.14em;
+    color:var(--violet); text-transform:uppercase; margin-bottom:16px; display:block;
+  }
+
+  /* ---------- NAV ---------- */
+  .nav{position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); background:rgba(10,10,15,0.75); border-bottom:1px solid var(--border);}
+  .nav-inner{max-width:var(--container); margin:0 auto; padding:16px 32px; display:flex; align-items:center; justify-content:space-between;}
+  .logo{display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:700; font-size:19px; letter-spacing:0.02em;}
+  .logo-dot{width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 30%, var(--violet), var(--violet-dim)); box-shadow:0 0 12px rgba(124,111,255,0.7);}
+  .nav-links{display:flex; gap:36px; font-size:14px; color:var(--text-dim);}
+  .nav-links a:hover{color:var(--text);}
+  .btn{padding:11px 22px; border-radius:8px; font-size:14px; font-weight:600; transition:all .15s ease; white-space:nowrap;}
+  .btn-primary{background:var(--violet); color:#0A0A0F;}
+  .btn-primary:hover{background:#8f84ff; transform:translateY(-1px);}
+  .btn-outline{border:1px solid var(--border); color:var(--text);}
+  .btn-outline:hover{border-color:var(--violet); color:var(--violet);}
+  .btn-ghost{border:1px solid var(--border); color:var(--text); font-size:13px; padding:9px 16px;}
+  .btn-ghost:hover{border-color:var(--violet);}
+  @media(max-width:760px){.nav-links{display:none;}}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:88px 0 60px;}
+  .hero-inner{display:grid; grid-template-columns:1.1fr 0.9fr; gap:64px; align-items:center;}
+  .hero h1{font-family:var(--font-display); font-size:clamp(34px,4.6vw,54px); font-weight:600; line-height:1.08; letter-spacing:-0.01em; margin-bottom:22px;}
+  .hero h1 em{font-style:normal; color:var(--violet);}
+  .hero-sub{font-size:17px; color:var(--text-dim); max-width:480px; margin-bottom:32px;}
+  .hero-ctas{display:flex; gap:14px; margin-bottom:44px; flex-wrap:wrap;}
+  .hero-stats{display:flex; gap:36px; border-top:1px solid var(--border); padding-top:24px;}
+  .hero-stats .num{font-family:var(--font-mono); font-size:22px; color:var(--text); display:block;}
+  .hero-stats .label{font-size:12.5px; color:var(--text-faint); max-width:120px; display:block; margin-top:4px;}
+
+  /* Hero visual: call card */
+  .call-card{background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:26px; position:relative; overflow:hidden;}
+  .call-card::before{content:''; position:absolute; inset:0; background:radial-gradient(circle at 80% -10%, rgba(124,111,255,0.16), transparent 60%); pointer-events:none;}
+  .call-top{display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:11px; letter-spacing:0.1em; color:var(--coral); margin-bottom:22px;}
+  .live-dot{width:7px; height:7px; border-radius:50%; background:var(--coral); animation:blink 1.6s infinite;}
+  @keyframes blink{50%{opacity:.25;}}
+  .orb-wrap{display:flex; justify-content:center; margin:18px 0 26px;}
+  .orb{position:relative; width:132px; height:132px; border-radius:50%; display:flex; align-items:center; justify-content:center;}
+  .orb span{position:absolute; border-radius:50%; border:1px solid var(--violet); opacity:0.55; animation:pulse 3s ease-out infinite;}
+  .orb span:nth-child(1){inset:0; animation-delay:0s;}
+  .orb span:nth-child(2){inset:14px; animation-delay:.7s;}
+  .orb span:nth-child(3){inset:28px; animation-delay:1.4s;}
+  .orb::after{content:''; width:52%; height:52%; border-radius:50%; background:radial-gradient(circle at 35% 30%, #a89bff, var(--violet-dim)); box-shadow:0 0 30px rgba(124,111,255,.55);}
+  @keyframes pulse{0%{transform:scale(0.7); opacity:.65;} 100%{transform:scale(1.15); opacity:0;}}
+  .orb-sm{width:44px; height:44px;}
+  .orb-sm::after{box-shadow:0 0 14px rgba(124,111,255,.5);}
+  .orb-sm span{display:none;}
+  .call-caption{font-size:14.5px; color:var(--text-dim); text-align:center; max-width:340px; margin:0 auto 22px; line-height:1.55;}
+  .waveform{display:flex; align-items:flex-end; justify-content:center; gap:4px; height:26px; margin-bottom:22px;}
+  .waveform i{width:3px; background:var(--violet); border-radius:2px; animation:wave 1.2s ease-in-out infinite;}
+  .waveform i:nth-child(odd){animation-delay:.15s;}
+  .waveform i:nth-child(1){height:40%;} .waveform i:nth-child(2){height:80%;} .waveform i:nth-child(3){height:55%;}
+  .waveform i:nth-child(4){height:100%;} .waveform i:nth-child(5){height:60%;} .waveform i:nth-child(6){height:85%;} .waveform i:nth-child(7){height:45%;}
+  @keyframes wave{0%,100%{transform:scaleY(0.4);} 50%{transform:scaleY(1);}}
+  .call-actions{display:flex; justify-content:center; gap:14px;}
+  .call-btn{width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; border:1px solid var(--border);}
+  .call-btn.end{background:var(--red); border-color:var(--red);}
+
+  @media(max-width:900px){.hero-inner{grid-template-columns:1fr;} .hero-stats{flex-wrap:wrap; row-gap:16px;}}
+
+  /* ---------- STAT STRIP ---------- */
+  .stat-strip{border-top:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--surface);}
+  .stat-strip-inner{max-width:var(--container); margin:0 auto; padding:40px 32px; display:grid; grid-template-columns:repeat(3,1fr); gap:32px;}
+  .stat-num{font-family:var(--font-mono); font-size:30px; color:var(--violet); display:block; margin-bottom:8px;}
+  .stat-label{font-size:13.5px; color:var(--text-dim); max-width:260px;}
+  @media(max-width:760px){.stat-strip-inner{grid-template-columns:1fr; gap:24px;}}
+
+  /* ---------- SECTIONS ---------- */
+  .section{padding:100px 0;}
+  .section.alt{background:var(--surface);}
+  .section-head{max-width:640px; margin-bottom:52px;}
+  .section-head h2{font-family:var(--font-display); font-size:clamp(26px,3vw,36px); font-weight:600; line-height:1.2; letter-spacing:-0.01em;}
+  .section-sub{color:var(--text-dim); margin-top:14px; font-size:15.5px;}
+  @media(max-width:760px){.section{padding:64px 0;}}
+
+  /* ---------- TRAINERS ---------- */
+  .trainer-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px;}
+  .trainer-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px 22px; text-align:left; transition:border-color .15s ease, transform .15s ease;}
+  .trainer-card:hover{transform:translateY(-3px);}
+  .trainer-card.selected{border-color:var(--tc); box-shadow:0 0 0 1px var(--tc), 0 0 24px rgba(124,111,255,.14);}
+  .trainer-avatar{width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:600; font-size:19px; margin-bottom:18px; background:radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--tc) 70%, white), var(--tc)); color:#0A0A0F;}
+  .trainer-card h3{font-family:var(--font-display); font-size:18px; margin-bottom:4px;}
+  .trainer-focus{font-size:12px; font-family:var(--font-mono); color:var(--tc); margin-bottom:12px; letter-spacing:.02em;}
+  .trainer-blurb{font-size:13.5px; color:var(--text-dim); line-height:1.5;}
+  @media(max-width:900px){.trainer-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:520px){.trainer-grid{grid-template-columns:1fr;}}
+
+  /* ---------- PERSONALITIES ---------- */
+  .personality-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px;}
+  .pers-card{background:var(--void); border:1px solid var(--border); border-radius:16px; padding:24px 22px; text-align:left; transition:border-color .15s ease, transform .15s ease;}
+  .pers-card:hover{transform:translateY(-3px);}
+  .pers-card.selected{border-color:var(--violet); box-shadow:0 0 0 1px var(--violet), 0 0 24px rgba(124,111,255,.14);}
+  .pers-icon{width:38px; height:38px; margin-bottom:16px;}
+  .pers-card h3{font-family:var(--font-display); font-size:17px; margin-bottom:8px;}
+  .pers-blurb{font-size:13.5px; color:var(--text-dim); line-height:1.5;}
+  @media(max-width:900px){.personality-grid{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:520px){.personality-grid{grid-template-columns:1fr;}}
+
+  /* ---------- LIVE DEMO ---------- */
+  .demo-grid{display:grid; grid-template-columns:0.85fr 1.15fr; gap:24px; align-items:start;}
+  .profile-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px;}
+  .profile-card h3{font-family:var(--font-display); font-size:15px; margin-bottom:18px; color:var(--text-dim); font-weight:500;}
+  .profile-row{display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--border); font-size:14px;}
+  .profile-row:last-of-type{border-bottom:none;}
+  .mono{font-family:var(--font-mono); font-size:13.5px;}
+  .mono.low{color:var(--amber);}
+  .profile-note{font-size:12px; color:var(--text-faint); margin-top:16px; line-height:1.5;}
+
+  .chat-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; display:flex; flex-direction:column; height:560px;}
+  .chat-header{display:flex; align-items:center; gap:12px; padding:18px 22px; border-bottom:1px solid var(--border);}
+  .chat-title{font-family:var(--font-display); font-size:15px; font-weight:600;}
+  .chat-sub{font-size:11.5px; color:var(--mint); font-family:var(--font-mono);}
+  .chat-body{flex:1; overflow-y:auto; padding:22px; display:flex; flex-direction:column; gap:14px;}
+  .bubble{max-width:78%; padding:12px 16px; border-radius:14px; font-size:14px; line-height:1.5; animation:fadeUp .25s ease;}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+  .bubble.user{align-self:flex-end; background:var(--violet); color:#0A0A0F; border-bottom-right-radius:4px;}
+  .bubble.trainer{align-self:flex-start; background:var(--surface-2); border:1px solid var(--border); border-bottom-left-radius:4px;}
+  .bubble.system{align-self:center; background:none; color:var(--text-faint); font-size:12px; font-family:var(--font-mono);}
+  .typing{align-self:flex-start; display:flex; gap:4px; padding:14px 16px;}
+  .typing span{width:6px; height:6px; border-radius:50%; background:var(--text-faint); animation:tdot 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes tdot{0%,60%,100%{opacity:.3; transform:translateY(0);} 30%{opacity:1; transform:translateY(-3px);}}
+  .chip-row{display:flex; gap:8px; padding:0 22px 14px; flex-wrap:wrap;}
+  .chip{border:1px solid var(--border); border-radius:20px; padding:8px 14px; font-size:12.5px; color:var(--text-dim); transition:all .15s ease;}
+  .chip:hover{border-color:var(--violet); color:var(--text);}
+  .chat-input-row{display:flex; gap:10px; padding:16px 22px; border-top:1px solid var(--border);}
+  .chat-input-row input{flex:1; background:var(--void); border:1px solid var(--border); border-radius:10px; padding:12px 14px; color:var(--text); font-size:14px;}
+  .chat-input-row input:focus{border-color:var(--violet); outline:none;}
+  @media(max-width:900px){.demo-grid{grid-template-columns:1fr;} .chat-card{height:520px;}}
+
+  /* ---------- TRACKING LEVELS ---------- */
+  .tracking-list{display:flex; flex-direction:column; border-top:1px solid var(--border);}
+  .track-row{display:grid; grid-template-columns:64px 1fr; gap:24px; padding:26px 0; border-bottom:1px solid var(--border);}
+  .track-num{font-family:var(--font-mono); font-size:13px; color:var(--violet); padding-top:3px;}
+  .track-row h3{font-family:var(--font-display); font-size:17px; margin-bottom:6px;}
+  .track-row p{font-size:14px; color:var(--text-dim); max-width:640px; line-height:1.55;}
+
+  /* ---------- DASHBOARD ---------- */
+  .dashboard-grid{display:grid; grid-template-columns:repeat(4,1fr) ; gap:18px;}
+  .metric-card{background:var(--void); border:1px solid var(--border); border-radius:14px; padding:20px;}
+  .metric-label{font-size:12px; color:var(--text-faint); margin-bottom:10px;}
+  .metric-val{font-family:var(--font-mono); font-size:24px;}
+  .metric-val.warn{color:var(--amber);}
+  .metric-val.good{color:var(--mint);}
+  .plan-card{grid-column:1 / -1; background:linear-gradient(135deg, rgba(124,111,255,0.12), rgba(124,111,255,0.02)); border:1px solid var(--violet-dim); border-radius:14px; padding:24px; margin-top:4px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;}
+  .plan-card p{font-size:14.5px; color:var(--text); max-width:560px; line-height:1.55;}
+  @media(max-width:900px){.dashboard-grid{grid-template-columns:repeat(2,1fr);}}
+
+  /* ---------- PROGRESS ---------- */
+  .progress-grid{display:grid; grid-template-columns:1.2fr 0.8fr; gap:24px;}
+  .chart-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px;}
+  .chart-stats{display:flex; gap:28px; margin-bottom:20px;}
+  .chart-stats div span:first-child{display:block; font-family:var(--font-mono); font-size:20px; color:var(--mint);}
+  .chart-stats div span:last-child{font-size:11.5px; color:var(--text-faint);}
+  .timeline-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:26px;}
+  .timeline-card h3{font-family:var(--font-display); font-size:16px; margin-bottom:18px;}
+  .timeline{list-style:none; display:flex; flex-direction:column; gap:16px;}
+  .timeline li{display:grid; grid-template-columns:64px 1fr; gap:14px; font-size:13.5px;}
+  .timeline li span:first-child{font-family:var(--font-mono); font-size:11.5px; color:var(--violet); padding-top:1px;}
+  .timeline li span:last-child{color:var(--text-dim); line-height:1.5;}
+  @media(max-width:900px){.progress-grid{grid-template-columns:1fr;}}
+
+  /* ---------- CTA + FOOTER ---------- */
+  .cta-section{padding:110px 32px; text-align:center; border-top:1px solid var(--border); background:radial-gradient(circle at 50% 0%, rgba(124,111,255,0.1), transparent 60%);}
+  .cta-section h2{font-family:var(--font-display); font-size:clamp(26px,3.4vw,38px); margin-bottom:14px;}
+  .cta-section p{color:var(--text-dim); max-width:480px; margin:0 auto 30px; font-size:15.5px;}
+  .footer{border-top:1px solid var(--border); padding:32px; text-align:center;}
+  .footer p{font-size:12.5px; color:var(--text-faint); max-width:640px; margin:0 auto; line-height:1.6;}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important;}
+    html{scroll-behavior:auto;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="logo"><span class="logo-dot"></span>VIGIL</div>
+    <div class="nav-links">
+      <a href="#trainers">Trainers</a>
+      <a href="#tracking">How it tracks you</a>
+      <a href="#demo">Live demo</a>
+      <a href="#progress">Progress</a>
+    </div>
+    <button class="btn btn-ghost" onclick="document.getElementById('demo').scrollIntoView()">Try the live demo</button>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <span class="eyebrow">Concept prototype</span>
+      <h1>The trainer that notices<br>when you <em>don't</em> show up.</h1>
+      <p class="hero-sub">Most fitness apps wait for you to open them. Vigil doesn't. It remembers your goals, reads your recovery data, and says something when you go quiet — the way a real coach would.</p>
+      <div class="hero-ctas">
+        <button class="btn btn-primary" onclick="document.getElementById('demo').scrollIntoView()">Talk to Vigil now</button>
+        <button class="btn btn-outline" onclick="document.getElementById('trainers').scrollIntoView()">Meet the trainers</button>
+      </div>
+      <div class="hero-stats">
+        <div><span class="num">24/7</span><span class="label">Proactive, not reactive</span></div>
+        <div><span class="num">06</span><span class="label">Levels of workout tracking</span></div>
+        <div><span class="num">04</span><span class="label">Coaching personalities</span></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="call-card">
+        <div class="call-top"><span class="live-dot"></span>INCOMING CHECK-IN</div>
+        <div class="orb-wrap"><div class="orb"><span></span><span></span><span></span></div></div>
+        <p class="call-caption">"You slept 6h 12m last night. Recovery's at 58%. Let's ease into today — I'm swapping legs for mobility work."</p>
+        <div class="waveform"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="call-actions">
+          <button class="call-btn">🎙</button>
+          <button class="call-btn end">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="stat-strip">
+  <div class="stat-strip-inner">
+    <div><span class="stat-num">$14–58B</span><span class="stat-label">Range analysts give for the AI-in-fitness market by the mid-2030s — estimates vary widely, but the direction doesn't.</span></div>
+    <div><span class="stat-num">~90%</span><span class="stat-label">of new fitness apps lose most of their users within the first month, per industry churn studies.</span></div>
+    <div><span class="stat-num">0</span><span class="stat-label">mainstream apps today that message you first when you skip a session.</span></div>
+  </div>
+</section>
+
+<section class="section" id="trainers">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">01 — Choose your trainer</span>
+      <h2>Four disciplines. One coach that remembers everything.</h2>
+      <p class="section-sub">Pick a trainer below — it carries through to the live demo further down the page.</p>
+    </div>
+    <div class="trainer-grid" id="trainerGrid"></div>
+  </div>
+</section>
+
+<section class="section alt" id="personality">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">02 — Set the tone</span>
+      <h2>Same expertise. Different way of pushing you.</h2>
+      <p class="section-sub">Personality changes how Vigil talks to you, not what it knows about you.</p>
+    </div>
+    <div class="personality-grid" id="personalityGrid"></div>
+  </div>
+</section>
+
+<section class="section demo-section" id="demo">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">03 — Live demo</span>
+      <h2>This part is real. You're talking to Claude.</h2>
+      <p class="section-sub">Tell your trainer you're skipping today and see what it says back. Responses are generated live — give it a second.</p>
+    </div>
+    <div class="demo-grid">
+      <div class="profile-card">
+        <h3>MOCK ATHLETE PROFILE</h3>
+        <div class="profile-row"><span>Sleep</span><span class="mono">6h 12m</span></div>
+        <div class="profile-row"><span>Recovery</span><span class="mono low">58%</span></div>
+        <div class="profile-row"><span>HRV</span><span class="mono low">32ms</span></div>
+        <div class="profile-row"><span>Streak</span><span class="mono">11 / 16 sessions</span></div>
+        <div class="profile-row"><span>Goal</span><span class="mono">12-week strength block</span></div>
+        <div class="profile-row"><span>Last session</span><span class="mono">2 days ago</span></div>
+        <p class="profile-note">This is sample data so Vigil has something to notice — nothing here is actually tracked. It's fed to Claude as context, same as a real integration would.</p>
+      </div>
+      <div class="chat-card">
+        <div class="chat-header">
+          <div class="orb orb-sm"></div>
+          <div>
+            <div class="chat-title" id="chatTitle">Rae · Motivator</div>
+            <div class="chat-sub">● LIVE ● POWERED BY CLAUDE</div>
+          </div>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chip-row" id="chipRow">
+          <button class="chip" data-msg="I don't feel like training today.">I don't feel like training today</button>
+          <button class="chip" data-msg="I just hit a new personal record!">I just hit a PR!</button>
+          <button class="chip" data-msg="What should today's session look like?">What's today's session?</button>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" placeholder="Type a message…" maxlength="300">
+          <button class="btn btn-primary" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="tracking">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">04 — How it would actually track you</span>
+      <h2>From typing your sets, to walking in and saying nothing.</h2>
+      <p class="section-sub">Real coaching doesn't require every level below — but each one removes friction, and gives Vigil more to notice.</p>
+    </div>
+    <div class="tracking-list" id="trackingList"></div>
+  </div>
+</section>
+
+<section class="section alt" id="dashboard">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">05 — Adaptive coaching</span>
+      <h2>The plan moves when your body does.</h2>
+    </div>
+    <div class="dashboard-grid">
+      <div class="metric-card"><div class="metric-label">SLEEP</div><div class="metric-val warn">6h 12m</div></div>
+      <div class="metric-card"><div class="metric-label">RECOVERY</div><div class="metric-val warn">58%</div></div>
+      <div class="metric-card"><div class="metric-label">HRV</div><div class="metric-val warn">32ms</div></div>
+      <div class="metric-card"><div class="metric-label">READINESS</div><div class="metric-val good">71%</div></div>
+      <div class="plan-card">
+        <p><strong>Today's plan, adjusted automatically:</strong> Recovery is below your weekly average, so Vigil swapped heavy squats for tempo-controlled leg press and added five minutes of hip mobility — same session goal, less joint strain.</p>
+        <button class="btn btn-outline">View adjusted workout</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="progress">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">06 — Progress</span>
+      <h2>Every session, remembered.</h2>
+    </div>
+    <div class="progress-grid">
+      <div class="chart-card">
+        <div class="chart-stats">
+          <div><span>+28%</span><span>Strength index, 8 weeks</span></div>
+          <div><span>16</span><span>Sessions this month</span></div>
+          <div><span>92%</span><span>Plan adherence</span></div>
+        </div>
+        <svg viewBox="0 0 560 200" id="progressChart" style="width:100%; height:auto;"></svg>
+      </div>
+      <div class="timeline-card">
+        <h3>What accountability sounds like</h3>
+        <ul class="timeline">
+          <li><span>8:00 AM</span><span>Recovery's back to 80% — good day to push legs. Same time as usual?</span></li>
+          <li><span>5:30 PM</span><span>You're usually leaving for the gym right about now. What's the plan?</span></li>
+          <li><span>6:00 PM</span><span>Traffic's light — nine minutes if you leave now.</span></li>
+          <li><span>7:15 PM</span><span>Bar speed dropped on set four. Take five off the last set.</span></li>
+          <li><span>9:00 PM</span><span>Solid session. Same time tomorrow, or want a rest day?</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-section">
+  <h2>This is a concept. Should it be real?</h2>
+  <p>Vigil isn't a shipping product — it's a prototype exploring what proactive AI coaching could feel like.</p>
+  <button class="btn btn-primary">Join the waitlist</button>
+</section>
+
+<footer class="footer">
+  <p>Vigil is a concept prototype, not a real product. The chat in section 03 calls Claude in real time and generates genuine responses; every metric, message, and profile elsewhere on this page is illustrative sample data — not real tracking, and not medical, nutrition, or fitness advice. The live demo works when this page is opened inside Claude's artifact viewer; opened as a plain downloaded file in a browser, the chat call will fail since it relies on Claude's API proxy.</p>
+</footer>
+
+<script>
+const TRAINERS = {
+  rae:   { name:'Rae',   focus:'Strength & Hypertrophy',  color:'#7C6FFF', blurb:'Builds around compound lifts and progressive overload. Talks in sets, reps, and load.' },
+  sable: { name:'Sable', focus:'Conditioning & Athleticism', color:'#4CE0B3', blurb:'Thinks in work capacity and movement quality. Big on tempo and recovery windows.' },
+  wren:  { name:'Wren',  focus:'Mobility & Recovery', color:'#F5A623', blurb:'Prioritizes joint health and sustainable training age over ego numbers.' },
+  kato:  { name:'Kato',  focus:'HIIT & Performance', color:'#FF7A5C', blurb:'Short, brutal, effective. Built for people who train in 30-minute windows.' }
+};
+
+const PERSONALITIES = {
+  motivator: {
+    name:'Motivator',
+    blurb:'Positive, encouraging, keeps you looking forward.',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 L14 9 L21 9 L15.5 13.5 L17.5 21 L12 16.5 L6.5 21 L8.5 13.5 L3 9 L10 9 Z" stroke-linejoin="round"/></svg>',
+    system:'You are Vigil in "Motivator" mode: warm, upbeat, and encouraging. You celebrate effort, reframe setbacks kindly, and always end on forward momentum. You never guilt-trip.'
+  },
+  drill: {
+    name:'Drill Sergeant',
+    blurb:'Tough love. Calls you out. No excuses.',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4 L4 20 L18 20 L18 12 L11 12 L11 4 Z" stroke-linejoin="round"/></svg>',
+    system:'You are Vigil in "Drill Sergeant" mode: blunt, high-standards, zero patience for excuses. You reference the athlete\'s own stated goals and history to hold them to their word. Firm, direct, short sentences — but never cruel, never insulting the person\'s character or body, and never demeaning.'
+  },
+  chill: {
+    name:'Chill Coach',
+    blurb:'Laid back, understanding, flexible approach.',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 14 Q9 6 12 14 T20 10 M4 18 Q9 12 12 18 T20 14" stroke-linecap="round"/></svg>',
+    system:'You are Vigil in "Chill Coach" mode: relaxed, understanding, low-pressure. You validate feelings first, then gently suggest a path forward. Casual tone, short replies.'
+  },
+  mentor: {
+    name:'Mentor',
+    blurb:'Wise, supportive, focused on long-term growth.',
+    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8 L14 14 L8 12 Z" stroke-linejoin="round"/></svg>',
+    system:'You are Vigil in "Mentor" mode: thoughtful and a little philosophical, focused on the athlete\'s long-term relationship with training rather than any single session. You ask reflective questions and connect today\'s choice to their bigger pattern.'
+  }
+};
+
+const PROFILE_CONTEXT = `Athlete profile (sample data): sleep last night 6h12m (below their norm), recovery score 58% (low), HRV 32ms (below baseline), 11 of 16 planned sessions completed this training block, goal is finishing a 12-week strength program, last trained 2 days ago. Weave these details in naturally when relevant instead of listing them. Never give specific caloric, dietary, or medical advice — stay focused on training, effort, recovery, and consistency. Keep replies to 2-4 sentences, conversational, never more than about 70 words.`;
+
+let state = { trainer:'rae', personality:'motivator', history:[] };
+
+function initTrainers(){
+  const grid = document.getElementById('trainerGrid');
+  grid.innerHTML = Object.entries(TRAINERS).map(([key,t]) => `
+    <button class="trainer-card ${key===state.trainer?'selected':''}" style="--tc:${t.color}" onclick="selectTrainer('${key}')">
+      <div class="trainer-avatar">${t.name[0]}</div>
+      <h3>${t.name}</h3>
+      <div class="trainer-focus">${t.focus.toUpperCase()}</div>
+      <p class="trainer-blurb">${t.blurb}</p>
+    </button>
+  `).join('');
+}
+
+function initPersonalities(){
+  const grid = document.getElementById('personalityGrid');
+  grid.innerHTML = Object.entries(PERSONALITIES).map(([key,p]) => `
+    <button class="pers-card ${key===state.personality?'selected':''}" onclick="selectPersonality('${key}')">
+      <div class="pers-icon" style="color:var(--violet)">${p.icon}</div>
+      <h3>${p.name}</h3>
+      <p class="pers-blurb">${p.blurb}</p>
+    </button>
+  `).join('');
+}
+
+function selectTrainer(key){
+  state.trainer = key;
+  initTrainers();
+  updateChatHeader();
+}
+function selectPersonality(key){
+  state.personality = key;
+  initPersonalities();
+  updateChatHeader();
+}
+function updateChatHeader(){
+  document.getElementById('chatTitle').textContent = `${TRAINERS[state.trainer].name} · ${PERSONALITIES[state.personality].name}`;
+}
+
+function initTracking(){
+  const levels = [
+    ['Manual check-in','You tell Vigil your weight and reps out loud or by text after each set. Slowest to start, but works in any gym on day one.'],
+    ['Voice conversation','Earbuds in, hands free. Vigil calls the working sets, you say "done," it asks for reps and adjusts the next set on the spot.'],
+    ['Computer vision form-check','Your phone camera watches range of motion, tempo, and bar path, and flags technique issues rep by rep.'],
+    ['Wearable integration','Sleep, HRV, and recovery from your watch feed straight into the plan — Vigil adjusts volume before you even open the app.'],
+    ['Automatic gym detection','Vigil recognizes which station you\'re at and starts the set timer on its own. No taps, no logging.'],
+    ['Full autonomous coaching','Every workout ever done, every injury, every excuse — remembered and reasoned about, the way a coach who\'s trained you for years would.']
+  ];
+  document.getElementById('trackingList').innerHTML = levels.map((l,i)=>`
+    <div class="track-row">
+      <div class="track-num">0${i+1}</div>
+      <div><h3>${l[0]}</h3><p>${l[1]}</p></div>
+    </div>
+  `).join('');
+}
+
+function drawChart(){
+  const data = [100,103,105,104,109,113,116,123,128];
+  const w=560,h=200,pad=24;
+  const max=Math.max(...data), min=Math.min(...data);
+  const stepX=(w-pad*2)/(data.length-1);
+  const pts = data.map((v,i)=>{
+    const x = pad + i*stepX;
+    const y = h-pad - ((v-min)/(max-min))*(h-pad*2);
+    return [x,y];
+  });
+  const path = pts.map((p,i)=> (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  const area = path + ` L${pts[pts.length-1][0]},${h-pad} L${pts[0][0]},${h-pad} Z`;
+  const dots = pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="#4CE0B3"/>`).join('');
+  const svg = document.getElementById('progressChart');
+  svg.innerHTML = `
+    <defs><linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4CE0B3" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#4CE0B3" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#areaFill)" stroke="none"/>
+    <path d="${path}" fill="none" stroke="#4CE0B3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}
+    <text x="${pad}" y="${h-4}" fill="#5c5b66" font-size="10" font-family="IBM Plex Mono">Week 1</text>
+    <text x="${w-pad-46}" y="${h-4}" fill="#5c5b66" font-size="10" font-family="IBM Plex Mono">Week 8</text>
+  `;
+}
+
+function addBubble(role, text){
+  const body = document.getElementById('chatBody');
+  const div = document.createElement('div');
+  div.className = 'bubble ' + role;
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+  return div;
+}
+function setTyping(on){
+  const body = document.getElementById('chatBody');
+  let el = document.getElementById('typingIndicator');
+  if(on && !el){
+    el = document.createElement('div');
+    el.className = 'typing';
+    el.id = 'typingIndicator';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    body.appendChild(el);
+    body.scrollTop = body.scrollHeight;
+  } else if(!on && el){
+    el.remove();
+  }
+}
+
+async function sendChat(textOverride){
+  const input = document.getElementById('chatInput');
+  const text = (textOverride || input.value).trim();
+  if(!text) return;
+  input.value = '';
+  addBubble('user', text);
+  setTyping(true);
+
+  const trainer = TRAINERS[state.trainer];
+  const persona = PERSONALITIES[state.personality];
+  const systemPrompt = `${persona.system} You are speaking as "${trainer.name}", a ${trainer.focus} coach. ${PROFILE_CONTEXT}`;
+
+  state.history.push({role:'user', content:text});
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        system: systemPrompt,
+        messages: state.history
+      })
+    });
+    const data = await res.json();
+    const textOut = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
+    setTyping(false);
+    if(textOut){
+      addBubble('trainer', textOut);
+      state.history.push({role:'assistant', content:textOut});
+    } else {
+      addBubble('system', 'No response — try again in a moment.');
+    }
+  } catch(e){
+    setTyping(false);
+    addBubble('system', 'Live chat only works inside Claude\'s artifact viewer — this connection needs Claude\'s API proxy.');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initTrainers();
+  initPersonalities();
+  initTracking();
+  drawChart();
+  addBubble('trainer', "Hey — I'm Rae. I can see you're 2 days out from your last session and recovery's sitting at 58%. What's going on today?");
+  document.getElementById('sendBtn').addEventListener('click', ()=>sendChat());
+  document.getElementById('chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendChat(); });
+  document.querySelectorAll('.chip').forEach(chip=>{
+    chip.addEventListener('click', ()=> sendChat(chip.dataset.msg));
+  });
+});
+</script>
+</body>
+</html>

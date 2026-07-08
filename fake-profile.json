@@ -1,0 +1,43 @@
+{
+  "client": {
+    "name": "Jack",
+    "age": 27,
+    "goal": "Lose 8 kg by 30 September 2026 and bench 100 kg",
+    "training_days": ["Monday", "Wednesday", "Friday"],
+    "usual_session_time": "18:30",
+    "injuries": ["Left shoulder impingement (2024) — no overhead pressing, use landmine press instead"],
+    "current_stats": { "weight_kg": 88, "bench_1rm_kg": 92, "squat_1rm_kg": 120 }
+  },
+  "current_program": {
+    "name": "Push/Pull/Legs — Week 5 of 8",
+    "next_session": {
+      "type": "Push",
+      "planned": [
+        "Bench press 4x6 @ 82.5kg",
+        "Incline DB press 3x10 @ 30kg",
+        "Landmine press 3x12",
+        "Cable fly 3x15",
+        "30-min fallback: bench 4x6 + landmine press 3x12 only"
+      ]
+    }
+  },
+  "recent_sessions": [
+    { "date": "2026-07-06", "type": "Pull", "status": "completed", "highlight": "Barbell row 5x5 @ 70kg, all reps clean" },
+    { "date": "2026-07-03", "type": "Push", "status": "completed", "highlight": "Bench 4x6 @ 80kg, last set ground out — RPE 9" },
+    { "date": "2026-07-01", "type": "Legs", "status": "SKIPPED", "excuse_given": "too tired after work" },
+    { "date": "2026-06-29", "type": "Pull", "status": "completed", "highlight": "First unassisted set of 8 pull-ups" },
+    { "date": "2026-06-24", "type": "Legs", "status": "SKIPPED", "excuse_given": "work is crazy this week" }
+  ],
+  "excuse_log": [
+    { "date": "2026-07-01", "excuse": "too tired after work" },
+    { "date": "2026-06-24", "excuse": "work is crazy this week" },
+    { "date": "2026-06-12", "excuse": "work dinner, client thing" }
+  ],
+  "patterns_noted": [
+    "Legs day skipped 2 of last 3 weeks — squat has not progressed since week 2",
+    "All three logged excuses are work-related",
+    "Never misses Pull day",
+    "Weight flat at 88kg for 3 weeks — Sept goal needs ~0.7kg/week from now"
+  ],
+  "streak": { "current_weeks_3_of_3_sessions": 0, "best_weeks_3_of_3_sessions": 4 }
+}

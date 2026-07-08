@@ -1,0 +1,23 @@
+# Env
+.env
+.env.local
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Expo
+the-vigil/.expo/
+server/.expo/
+the-vigil/dist/
+the-vigil/web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+the-vigil/ios/
+the-vigil/android/
+
+# macOS
+.DS_Store
