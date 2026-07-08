@@ -11,13 +11,13 @@
   "current_program": {
     "name": "Push/Pull/Legs — Week 5 of 8",
     "next_session": {
-      "type": "Push",
+      "type": "Legs",
       "planned": [
-        "Bench press 4x6 @ 82.5kg",
-        "Incline DB press 3x10 @ 30kg",
-        "Landmine press 3x12",
-        "Cable fly 3x15",
-        "30-min fallback: bench 4x6 + landmine press 3x12 only"
+        "Squat 4x6 @ 95kg",
+        "Romanian deadlift 3x10 @ 80kg",
+        "Leg press 3x12",
+        "Leg curl 3x15",
+        "30-min fallback: squat 4x6 + leg curl 3x15 only"
       ]
     }
   },
