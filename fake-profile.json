@@ -33,11 +33,5 @@
     { "date": "2026-06-24", "excuse": "work is crazy this week" },
     { "date": "2026-06-12", "excuse": "work dinner, client thing" }
   ],
-  "patterns_noted": [
-    "Legs day skipped 2 of last 3 weeks — squat has not progressed since week 2",
-    "All three logged excuses are work-related",
-    "Never misses Pull day",
-    "Weight flat at 88kg for 3 weeks — Sept goal needs ~0.7kg/week from now"
-  ],
   "streak": { "current_weeks_3_of_3_sessions": 0, "best_weeks_3_of_3_sessions": 4 }
 }

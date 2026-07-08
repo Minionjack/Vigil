@@ -32,12 +32,52 @@ interface Profile {
   };
   recent_sessions: RecentSession[];
   excuse_log: Excuse[];
-  patterns_noted: string[];
   streak: { current_weeks_3_of_3_sessions: number; best_weeks_3_of_3_sessions: number };
+}
+
+export interface TypeStats {
+  completed: number;
+  skipped: number;
+  skipEntries: { date: string; excuse: string }[];
 }
 
 function dayOfWeek(dateStr: string): string {
   return new Date(`${dateStr}T12:00:00`).toLocaleDateString("en-US", { weekday: "long" });
+}
+
+/**
+ * Derives per-session-type counts straight from recent_sessions — the only
+ * numbers Claude is allowed to cite as a count, streak, or "X of Y" claim.
+ * Hand-authored pattern text (the old `patterns_noted` field) previously let
+ * the model repeat claims — like a squat plateau with zero logged squat
+ * sessions to support it — that weren't actually backed by the data.
+ */
+export function computeSessionStats(sessions: RecentSession[]): Record<string, TypeStats> {
+  const stats: Record<string, TypeStats> = {};
+  for (const s of sessions) {
+    const key = s.type;
+    if (!stats[key]) stats[key] = { completed: 0, skipped: 0, skipEntries: [] };
+    if (s.status === "SKIPPED") {
+      stats[key].skipped += 1;
+      stats[key].skipEntries.push({ date: s.date, excuse: s.excuse_given ?? "no excuse given" });
+    } else {
+      stats[key].completed += 1;
+    }
+  }
+  return stats;
+}
+
+export function renderVerifiedStats(stats: Record<string, TypeStats>): string {
+  return Object.entries(stats)
+    .map(([type, s]) => {
+      if (s.completed === 0 && s.skipped > 0) {
+        const dates = s.skipEntries.map((e) => `${e.date} ("${e.excuse}")`).join(", ");
+        return `- ${type}: 0 completed, ${s.skipped} skipped in logged history (${dates}). No ${type.toLowerCase()} performance data exists in this file — never reference progress, plateaus, or numbers for this session type; state plainly that none has been logged.`;
+      }
+      const skipNote = s.skipped > 0 ? `${s.skipped} skipped` : "never skipped";
+      return `- ${type}: ${s.completed} completed, ${skipNote}, in logged history.`;
+    })
+    .join("\n");
 }
 
 function renderProfile(profile: Profile): string {
@@ -52,7 +92,7 @@ function renderProfile(profile: Profile): string {
     .join("\n");
 
   const excuses = profile.excuse_log.map((e) => `- ${e.date}: "${e.excuse}"`).join("\n");
-  const patterns = profile.patterns_noted.map((p) => `- ${p}`).join("\n");
+  const verifiedStats = renderVerifiedStats(computeSessionStats(profile.recent_sessions));
   const planned = prog.next_session.planned.map((p) => `- ${p}`).join("\n");
 
   return `## Client file
@@ -74,8 +114,8 @@ ${sessions}
 Excuse log:
 ${excuses}
 
-Patterns noted:
-${patterns}
+## Verified stats (computed from recent_sessions — the only numbers you may cite as a count, streak, or "X of Y" claim; do not derive or estimate beyond these)
+${verifiedStats}
 
 Streak: currently ${profile.streak.current_weeks_3_of_3_sessions} weeks of 3/3 sessions hit in a row; best streak ${profile.streak.best_weeks_3_of_3_sessions} weeks.`;
 }
