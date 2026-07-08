@@ -19,5 +19,9 @@ the-vigil/web-build/
 the-vigil/ios/
 the-vigil/android/
 
+# Proactive stub — personal training data + ntfy secret topic
+proactive/state.json
+proactive/journal.jsonl
+
 # macOS
 .DS_Store

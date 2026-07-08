@@ -1,0 +1,26 @@
+{
+  "client": {
+    "name": "Jack",
+    "goal": "Lose 8 kg by 30 September 2026 and bench 100 kg",
+    "training_days": ["Monday", "Wednesday", "Friday"],
+    "usual_session_time": "18:30",
+    "timezone": "Asia/Dubai"
+  },
+  "current_program": {
+    "name": "Push/Pull/Legs — Week 5 of 8",
+    "next_session": {
+      "type": "Pull",
+      "planned": ["Barbell row 5x5 @ 72.5kg", "Lat pulldown 3x10", "Face pull 3x15"],
+      "fallback_30min": ["Barbell row 5x5", "Lat pulldown 3x10"]
+    }
+  },
+  "sessions": [
+    { "date": "2026-07-10", "type": "Legs", "status": "completed", "note": "Squat 4x6 @ 100kg" },
+    { "date": "2026-07-08", "type": "Pull", "status": "completed", "note": "Rows 5x5 @ 70kg" }
+  ],
+  "journal_config": {
+    "max_messages_per_day": 2,
+    "quiet_hours": { "before": "06:30", "after": "21:30" },
+    "delivery": { "method": "ntfy", "topic": "fixture-only" }
+  }
+}
