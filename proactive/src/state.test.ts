@@ -1,7 +1,23 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { computeSessionStats, renderState, renderVerifiedStats } from "./state.js";
+import { dateStringInTz } from "./rules.js";
+import { computeNextScheduledSession, computeSessionStats, renderState, renderVerifiedStats } from "./state.js";
 import type { Session, State } from "./types.js";
+
+function stateWithSessions(sessions: Session[]): State {
+  return {
+    client: {
+      name: "Jack",
+      goal: "test goal",
+      training_days: ["Monday", "Wednesday", "Friday"],
+      usual_session_time: "18:30",
+      timezone: "Asia/Dubai",
+    },
+    current_program: { name: "test", next_session: { type: "Push", planned: ["Bench"] } },
+    sessions,
+    journal_config: { max_messages_per_day: 2, quiet_hours: { before: "06:30", after: "21:30" }, delivery: { method: "ntfy", topic: "t" } },
+  };
+}
 
 test("computeSessionStats counts completed and skipped per type", () => {
   const sessions: Session[] = [
@@ -48,4 +64,33 @@ test("renderState labels each session with its actual weekday, not left for the 
   const rendered = renderState(state, "2026-07-13");
   assert.match(rendered, /2026-07-06 \(Monday\) Push/);
   assert.doesNotMatch(rendered, /2026-07-06 \(Friday\)/);
+});
+
+// 2026-07-06 is a Monday (established across the fixtures/tests in this repo).
+test("computeNextScheduledSession: next training day later this week", () => {
+  const state = stateWithSessions([]);
+  const today = dateStringInTz(new Date("2026-07-07T10:00:00Z"), "Asia/Dubai"); // Tuesday, 14:00 local — not a training day
+  const next = computeNextScheduledSession(state, today);
+  assert.deepEqual(next, { date: "2026-07-08", weekday: "Wednesday" });
+});
+
+test("computeNextScheduledSession: wraps around past Friday to next Monday", () => {
+  const state = stateWithSessions([]);
+  const today = dateStringInTz(new Date("2026-07-11T10:00:00Z"), "Asia/Dubai"); // Saturday, 14:00 local
+  const next = computeNextScheduledSession(state, today);
+  assert.deepEqual(next, { date: "2026-07-13", weekday: "Monday" });
+});
+
+test("computeNextScheduledSession: today is a training day with nothing logged yet -> today is next", () => {
+  const state = stateWithSessions([]);
+  const today = dateStringInTz(new Date("2026-07-06T10:00:00Z"), "Asia/Dubai"); // Monday, 14:00 local
+  const next = computeNextScheduledSession(state, today);
+  assert.deepEqual(next, { date: "2026-07-06", weekday: "Monday" });
+});
+
+test("computeNextScheduledSession: today is a training day already logged -> skips to the next one", () => {
+  const state = stateWithSessions([{ date: "2026-07-06", type: "Push", status: "completed", note: "done" }]);
+  const today = dateStringInTz(new Date("2026-07-06T10:00:00Z"), "Asia/Dubai"); // Monday, already logged
+  const next = computeNextScheduledSession(state, today);
+  assert.deepEqual(next, { date: "2026-07-08", weekday: "Wednesday" });
 });

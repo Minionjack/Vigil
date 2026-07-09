@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { weekdayOfDateString } from "./rules.js";
+import { addDays, weekdayOfDateString } from "./rules.js";
 import type { Session, State } from "./types.js";
 
 export function loadState(path: string): State {
@@ -36,6 +36,30 @@ export function computeSessionStats(sessions: Session[]): Record<string, TypeSta
   return stats;
 }
 
+export interface NextScheduledSession {
+  date: string; // YYYY-MM-DD
+  weekday: string;
+}
+
+/**
+ * The next day the client is due to train, per client.training_days —
+ * today counts if it's a training day and nothing's logged for it yet.
+ * Computed here (not left for the model to infer from the weekday pattern
+ * on past sessions) so a future session's date/weekday is always a
+ * rendered fact, never a guess — see the "Next scheduled session" line in
+ * renderState and the matching never-derive rule in proactive-extension.md.
+ */
+export function computeNextScheduledSession(state: State, today: string): NextScheduledSession {
+  for (let offset = 0; offset < 7; offset++) {
+    const date = offset === 0 ? today : addDays(today, offset);
+    const weekday = weekdayOfDateString(date);
+    if (!state.client.training_days.includes(weekday)) continue;
+    if (offset === 0 && state.sessions.some((s) => s.date === date)) continue;
+    return { date, weekday };
+  }
+  throw new Error("No training days configured in state.client.training_days");
+}
+
 export function renderVerifiedStats(stats: Record<string, TypeStats>): string {
   return Object.entries(stats)
     .map(([type, s]) => {
@@ -63,6 +87,10 @@ export function renderState(state: State, today: string): string {
 
   const verifiedStats = renderVerifiedStats(computeSessionStats(state.sessions));
   const planned = prog.next_session.planned.map((p) => `- ${p}`).join("\n");
+  const next = computeNextScheduledSession(state, today);
+  // next_session.type is hand-maintained (known drift risk) — render it as-is
+  // alongside the computed date/weekday; do not try to reconcile the two here.
+  const nextLine = `Next scheduled session: ${next.weekday} ${next.date} at ${c.usual_session_time} — ${prog.next_session.type} (per current_program.next_session)`;
 
   return `## Client file
 
@@ -71,6 +99,7 @@ Goal: ${c.goal}
 Training days: ${c.training_days.join(", ")}
 Usual session time: ${c.usual_session_time}
 Today: ${today}
+${nextLine}
 
 Current program: ${prog.name}
 Next session (${prog.next_session.type}):
