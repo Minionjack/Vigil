@@ -38,7 +38,7 @@ function main() {
   // If a recent nudge is still waiting on an outcome, this log resolves it —
   // this is what the act-rate score at the end of the experiment reads from.
   const journal = readJournal(journalPath);
-  const unresolved = findUnresolvedNudge(journal, now);
+  const unresolved = findUnresolvedNudge(journal, now, state.client.timezone);
   if (unresolved) {
     appendJournal(journalPath, {
       kind: "outcome",

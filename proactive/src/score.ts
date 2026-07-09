@@ -2,12 +2,20 @@ import path from "node:path";
 import { readJournal } from "./deliver.js";
 import type { FiredEntry, OutcomeEntry, RuleId } from "./types.js";
 
+// Experiment window start per DECISION-GATE.md ("Scoring counts only nudges
+// fired on/after 2026-07-13"). Entries before this are pre-window test fire
+// (e.g. the two 09 Jul nudges sent to a wrong ntfy topic and never seen) and
+// must not count toward the decision-gate numbers.
+const EXPERIMENT_WINDOW_START_MS = new Date("2026-07-13T00:00:00Z").getTime();
+
 // Prints per-rule fired counts and the act rate (nudges followed by a logged
 // session within the acted-on window) — the decision-gate metric from
 // BRIEF-PROACTIVE.md's two-week protocol.
 function main() {
   const journalPath = path.resolve(import.meta.dirname, "..", "journal.jsonl");
-  const journal = readJournal(journalPath);
+  const journal = readJournal(journalPath).filter(
+    (e) => new Date(e.timestamp).getTime() >= EXPERIMENT_WINDOW_START_MS
+  );
 
   const fired = journal.filter((e): e is FiredEntry => e.kind === "fired");
   const outcomes = journal.filter((e): e is OutcomeEntry => e.kind === "outcome");
