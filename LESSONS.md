@@ -42,7 +42,7 @@ the model doesn't know it's lying. The fix is always upstream: either
 compute the fact in code and hand it over, or make the absence of the
 fact itself the thing the prompt is allowed to say.
 
-**Why this will matter again:** Phase 2 adds wearable data, and it will be
+**Why this will matter again:** Phase 4 adds wearable data, and it will be
 tempting to write something like `"recovery has been trending down"` as an
 annotation on the state rather than a number the model can check. Same
 bug, new organ. Before adding any hand-written characterization of the
