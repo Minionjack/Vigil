@@ -1,8 +1,10 @@
 # Milestone 2 — Real Memory & One Source of Truth
 
-> **GATED.** Do not start this phase before the 2026-07-27 read-out. Green per
-> DECISION-GATE.md — start. Yellow — iterate the stub two more weeks first.
-> Red — this brief is dead; do not build it because it's already written.
+> **UNFROZEN 2026-08-07** by explicit override of DECISION-GATE.md's Red
+> verdict (recorded 2026-07-25, not revised — see the Override entry
+> there). Originally gated on the 2026-07-27 read-out (green to start,
+> yellow to iterate first, red to stay dead); proceeding anyway was a
+> conscious decision, not a changed result.
 
 **Goal:** The coach remembers me from the database, not from chat history — and
 both surfaces (chat and proactive) read and write the *same* memory. Success =

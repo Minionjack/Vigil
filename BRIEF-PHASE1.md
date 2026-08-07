@@ -1,8 +1,11 @@
 # Milestone 1 — Personality & Feel
 
-> **GATED** on DECISION-GATE.md verdict (green, or yellow after a successful
-> second iteration). May run before or parallel to Phase 2 — it touches
-> prompts and UI only, no backend. Red verdict = dead, like everything else.
+> **UNFROZEN 2026-08-07** by explicit override of DECISION-GATE.md's Red
+> verdict (recorded 2026-07-25, not revised — see the Override entry
+> there). Originally gated on green, or yellow after a successful second
+> iteration; proceeding anyway was a conscious decision, not a changed
+> result. May run before or parallel to Phase 2 — it touches prompts and
+> UI only, no backend.
 
 **Goal:** Three distinct coaches — Drill Sergeant, Mentor, Hype — each of
 which passes the Milestone 0 acceptance test *in its own voice*. Success =

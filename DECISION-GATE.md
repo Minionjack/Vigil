@@ -46,3 +46,29 @@ a 3-day Push/Pull/Legs rotation yields at most 2 Legs opportunities in a
 clean two-week window, not 4. Worth writing a denominator's derivation down
 explicitly the next time a gate like this is set, so it doesn't need
 reconstructing under pressure after the fact.
+
+---
+
+## Override — 2026-08-07
+
+Phase 1 and Phase 2 are unfrozen by explicit decision, not by a changed
+verdict. The Red read-out above stands exactly as recorded on 2026-07-25 —
+this is not a reinterpretation of the data, and nothing here claims the
+system as tested passed.
+
+The call: proceed anyway, on the judgment that Red reflected a hobbled
+experiment more than a disproven thesis — cron dead-silent for a real
+stretch early on, logging that lagged training by days, and a Legs
+denominator in this gate's own criteria that didn't match the program's
+actual cadence (flagged above, on 07-25, before this override existed).
+That judgment is not provable from the journal; it is a conscious choice
+to build past an unresolved question rather than wait for a cleaner
+answer to it. Two other paths were available and were not the one taken:
+running the stub two more clean weeks against a fixed setup, or designing
+the cold-gated test IDEA-TIERED-ACCOUNTABILITY.md itself calls for before
+anything gets built against that idea.
+
+`BRIEF-PHASE1.md` and `BRIEF-PHASE2.md` are updated to reflect this
+override in their own headers, dated to match. Their acceptance tests and
+"done when" bars are unchanged — an override changes whether building
+starts, not what "done" means once it does.
