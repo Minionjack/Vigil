@@ -1,0 +1,10 @@
+{
+  "name": "vigil-app",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "server",
+    "proactive",
+    "scripts"
+  ]
+}
