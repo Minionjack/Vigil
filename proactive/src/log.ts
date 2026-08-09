@@ -1,8 +1,18 @@
 import path from "node:path";
 import { appendJournal, readJournal } from "./deliver.js";
 import { findUnresolvedNudge } from "./outcome.js";
-import { dateStringInTz } from "./rules.js";
+import { dateStringInTz } from "@vigil/core";
 import { loadState, saveState } from "./state.js";
+
+// Rejects shapes the regex alone would let through as a real date, like
+// 2026-02-30 — JS Date silently rolls that over to 2026-03-02 rather than
+// erroring, which would log (and later render to the coach) a date the
+// user never typed with no warning at all.
+export function isValidCalendarDate(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
 
 // Usage:
 //   npm run log -- done pull "rows 5x5@72.5"
@@ -23,8 +33,8 @@ function main() {
   }
 
   const backfillDate = dateArg?.slice("--date=".length);
-  if (backfillDate && !/^\d{4}-\d{2}-\d{2}$/.test(backfillDate)) {
-    console.error(`Invalid --date value "${backfillDate}" — expected YYYY-MM-DD.`);
+  if (backfillDate && (!/^\d{4}-\d{2}-\d{2}$/.test(backfillDate) || !isValidCalendarDate(backfillDate))) {
+    console.error(`Invalid --date value "${backfillDate}" — expected a real calendar date, YYYY-MM-DD.`);
     process.exitCode = 1;
     return;
   }
@@ -72,4 +82,8 @@ function main() {
   }
 }
 
-main();
+// Guarded so this module can be imported for testing (isValidCalendarDate)
+// without executing the CLI as a side effect of the import.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}

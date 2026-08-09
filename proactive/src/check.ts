@@ -2,7 +2,8 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { appendJournal, deliverNtfy, readJournal } from "./deliver.js";
 import { generateMessage } from "./message.js";
-import { computeAcknowledgment, dateStringInTz, evaluateRules } from "./rules.js";
+import { dateStringInTz } from "@vigil/core";
+import { computeAcknowledgment, evaluateRules } from "./rules.js";
 import { loadState } from "./state.js";
 import type { FiredEntry, FiredLogEntry } from "./types.js";
 

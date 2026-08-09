@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
-import { dateStringInTz } from "./rules.js";
+import { dateStringInTz, resolvePersonality } from "@vigil/core";
 import { renderState } from "./state.js";
 import type { Acknowledgment, RuleFired, State } from "./types.js";
 
@@ -20,8 +20,14 @@ function client(): Anthropic {
   return anthropic;
 }
 
-function buildSystemPrompt(state: State, now: Date, fired: RuleFired, ack: Acknowledgment | null): string {
-  const personality = fs.readFileSync(path.join(REPO_ROOT, "coach-prompts", "drill-sergeant.md"), "utf-8").trim();
+export function buildSystemPrompt(state: State, now: Date, fired: RuleFired, ack: Acknowledgment | null): string {
+  const coreRules = fs.readFileSync(path.join(REPO_ROOT, "coach-prompts", "core-rules.md"), "utf-8").trim();
+  const voice = fs
+    .readFileSync(
+      path.join(REPO_ROOT, "coach-prompts", "personalities", `${resolvePersonality(state.client.personality)}.md`),
+      "utf-8"
+    )
+    .trim();
   const extension = fs.readFileSync(path.join(REPO_ROOT, "coach-prompts", "proactive-extension.md"), "utf-8").trim();
   const today = dateStringInTz(now, state.client.timezone);
   const clientFile = renderState(state, today);
@@ -31,7 +37,7 @@ function buildSystemPrompt(state: State, now: Date, fired: RuleFired, ack: Ackno
     ? `\n\nBefore anything else, acknowledge in one short line that the ${ack.type} session on ${ack.date} got done — you nudged him into it. Then continue with this message's own point.`
     : "";
 
-  return `${personality}\n\n${extension}\n\n${clientFile}\n\n${ruleLine}${ackLine}`;
+  return `${coreRules}\n\n${voice}\n\n${extension}\n\n${clientFile}\n\n${ruleLine}${ackLine}`;
 }
 
 export async function generateMessage(

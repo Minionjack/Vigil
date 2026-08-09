@@ -4,7 +4,8 @@
     "goal": "Lose 8 kg by 30 September 2026 and bench 100 kg",
     "training_days": ["Monday", "Wednesday", "Friday"],
     "usual_session_time": "18:30",
-    "timezone": "Asia/Dubai"
+    "timezone": "Asia/Dubai",
+    "personality": "drill-sergeant"
   },
   "current_program": {
     "name": "Push/Pull/Legs — Week 5 of 8",

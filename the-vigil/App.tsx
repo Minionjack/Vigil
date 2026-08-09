@@ -13,7 +13,9 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SERVER_URL } from "./config";
+import { PERSONALITIES, personalityById, type PersonalityId } from "./personalities";
 
 type Role = "user" | "assistant";
 
@@ -24,6 +26,11 @@ interface Message {
 }
 
 const HEADER_HEIGHT = 72;
+const PERSONALITY_STORAGE_KEY = "vigil.personality";
+
+function isPersonalityId(value: string | null): value is PersonalityId {
+  return PERSONALITIES.some((p) => p.id === value);
+}
 
 const colors = {
   void: "#0A0A0F",
@@ -42,7 +49,7 @@ function makeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function Orb({ size = 32 }: { size?: number }) {
+function Orb({ size = 32, color, initials }: { size?: number; color?: string; initials?: string }) {
   return (
     <View
       style={[
@@ -51,17 +58,51 @@ function Orb({ size = 32 }: { size?: number }) {
           width: size,
           height: size,
           borderRadius: size / 2,
+          backgroundColor: color ?? colors.violet,
+          shadowColor: color ?? colors.violet,
         },
       ]}
-    />
+    >
+      {initials && <Text style={[styles.orbInitials, { fontSize: size * 0.38 }]}>{initials}</Text>}
+    </View>
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function PickerScreen({ onSelect, canDismiss, onDismiss }: { onSelect: (id: PersonalityId) => void; canDismiss: boolean; onDismiss: () => void }) {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="light" />
+      <View style={styles.pickerHeader}>
+        {canDismiss && (
+          <TouchableOpacity onPress={onDismiss} hitSlop={12}>
+            <Text style={styles.pickerDismiss}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      <View style={styles.pickerIntro}>
+        <Text style={styles.pickerTitle}>Choose your coach</Text>
+        <Text style={styles.pickerSubtitle}>You can change this later.</Text>
+      </View>
+      <View style={styles.pickerCards}>
+        {PERSONALITIES.map((p) => (
+          <TouchableOpacity key={p.id} style={styles.pickerCard} onPress={() => onSelect(p.id)} activeOpacity={0.8}>
+            <Orb size={44} color={p.accent} initials={p.initials} />
+            <View style={styles.pickerCardText}>
+              <Text style={styles.pickerCardName}>{p.name}</Text>
+              <Text style={styles.pickerCardEthos}>{p.ethos}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function MessageBubble({ message, coachAccent, coachInitials }: { message: Message; coachAccent: string; coachInitials: string }) {
   const isCoach = message.role === "assistant";
   return (
     <View style={[styles.messageRow, isCoach ? styles.messageRowLeft : styles.messageRowRight]}>
-      {isCoach && <Orb size={28} />}
+      {isCoach && <Orb size={28} color={coachAccent} initials={coachInitials} />}
       <View
         style={[
           styles.bubble,
@@ -103,10 +144,10 @@ function TypingDot({ delay }: { delay: number }) {
   return <Animated.View style={[styles.typingDot, { opacity }]} />;
 }
 
-function TypingIndicator() {
+function TypingIndicator({ coachAccent, coachInitials }: { coachAccent: string; coachInitials: string }) {
   return (
     <View style={[styles.messageRow, styles.messageRowLeft]}>
-      <Orb size={28} />
+      <Orb size={28} color={coachAccent} initials={coachInitials} />
       <View style={[styles.bubble, styles.coachBubble, styles.bubbleTailLeft, styles.typingBubble]}>
         <TypingDot delay={0} />
         <TypingDot delay={150} />
@@ -120,7 +161,38 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [personality, setPersonality] = useState<PersonalityId | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(PERSONALITY_STORAGE_KEY).then((saved) => {
+      if (isPersonalityId(saved)) {
+        setPersonality(saved);
+      } else {
+        setShowPicker(true);
+      }
+      setLoaded(true);
+    });
+  }, []);
+
+  async function selectPersonality(id: PersonalityId) {
+    // Applies the selection immediately either way — a storage failure
+    // (full disk, permission revoked) shouldn't block using the app for
+    // this session, it just means the pick won't survive a cold start.
+    // Logged, not surfaced: not worth a user-facing error for a
+    // preference write, but silently losing the pick with no trace
+    // anywhere would make the next cold start's forced re-picker
+    // confusing to debug.
+    try {
+      await AsyncStorage.setItem(PERSONALITY_STORAGE_KEY, id);
+    } catch (err) {
+      console.warn("Failed to persist personality selection:", err);
+    }
+    setPersonality(id);
+    setShowPicker(false);
+  }
 
   async function sendMessage() {
     const trimmed = input.trim();
@@ -139,6 +211,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+          personality: personality ?? "drill-sergeant",
         }),
       });
 
@@ -157,21 +230,40 @@ export default function App() {
     }
   }
 
+  if (!loaded) {
+    return <SafeAreaView style={styles.safeArea}><StatusBar style="light" /></SafeAreaView>;
+  }
+
+  if (showPicker) {
+    return (
+      <PickerScreen
+        onSelect={selectPersonality}
+        canDismiss={personality !== null}
+        onDismiss={() => setShowPicker(false)}
+      />
+    );
+  }
+
+  const current = personalityById(personality ?? "drill-sergeant");
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Orb size={22} />
+          <Orb size={22} color={current.accent} initials={current.initials} />
           <View>
-            <Text style={styles.headerTitle}>VIGIL · Drill Sergeant</Text>
+            <Text style={styles.headerTitle}>VIGIL · {current.shortLabel}</Text>
             <View style={styles.statusRow}>
               <View style={styles.statusDot} />
               <Text style={styles.statusText}>LIVE</Text>
             </View>
           </View>
         </View>
+        <TouchableOpacity onPress={() => setShowPicker(true)} hitSlop={12}>
+          <Text style={styles.headerAction}>Change coach</Text>
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
@@ -183,10 +275,10 @@ export default function App() {
           ref={listRef}
           data={messages}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => <MessageBubble message={item} coachAccent={current.accent} coachInitials={current.initials} />}
           contentContainerStyle={styles.messageList}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          ListFooterComponent={isTyping ? <TypingIndicator /> : null}
+          ListFooterComponent={isTyping ? <TypingIndicator coachAccent={current.accent} coachInitials={current.initials} /> : null}
         />
 
         <View style={styles.inputRow}>
@@ -219,6 +311,7 @@ const styles = StyleSheet.create({
     height: HEADER_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
@@ -234,6 +327,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.3,
+  },
+  headerAction: {
+    color: colors.textDim,
+    fontSize: 12.5,
+    fontWeight: "600",
   },
   statusRow: {
     flexDirection: "row",
@@ -260,6 +358,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
     elevation: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  orbInitials: {
+    color: colors.void,
+    fontWeight: "700",
   },
   messageList: {
     padding: 16,
@@ -350,5 +454,58 @@ const styles = StyleSheet.create({
   sendButtonText: {
     color: colors.void,
     fontWeight: "700",
+  },
+  pickerHeader: {
+    height: 44,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  pickerDismiss: {
+    color: colors.textDim,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  pickerIntro: {
+    paddingHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 28,
+  },
+  pickerTitle: {
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  pickerSubtitle: {
+    color: colors.textDim,
+    fontSize: 14,
+  },
+  pickerCards: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  pickerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 16,
+  },
+  pickerCardText: {
+    flex: 1,
+  },
+  pickerCardName: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  pickerCardEthos: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

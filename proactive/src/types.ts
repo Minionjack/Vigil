@@ -1,3 +1,5 @@
+import type { PersonalityId } from "@vigil/core";
+
 export type RuleId = "R1" | "R2" | "R3" | "R4";
 
 export interface Session {
@@ -15,6 +17,7 @@ export interface State {
     training_days: string[];
     usual_session_time: string; // "HH:MM"
     timezone: string;
+    personality?: PersonalityId; // defaults to drill-sergeant if unset
   };
   current_program: {
     name: string;

@@ -1,4 +1,4 @@
-import { dateStringInTz } from "./rules.js";
+import { dateStringInTz } from "@vigil/core";
 import type { FiredEntry, JournalEntry, OutcomeEntry } from "./types.js";
 
 // R1 nudges about a session that's imminent (fires ~45min before), so "acted"

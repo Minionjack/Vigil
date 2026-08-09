@@ -1,46 +1,25 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { computeSessionStats, renderVerifiedStats } from "./systemPrompt.js";
+import { buildSystemPrompt } from "./systemPrompt.js";
 
-test("computeSessionStats counts completed and skipped per type", () => {
-  const sessions = [
-    { date: "2026-07-06", type: "Pull", status: "completed", highlight: "rows" },
-    { date: "2026-07-03", type: "Push", status: "completed", highlight: "bench" },
-    { date: "2026-07-01", type: "Legs", status: "SKIPPED", excuse_given: "too tired after work" },
-    { date: "2026-06-29", type: "Pull", status: "completed", highlight: "pull-ups" },
-    { date: "2026-06-24", type: "Legs", status: "SKIPPED", excuse_given: "work is crazy this week" },
-  ];
+// computeSessionStats and renderVerifiedStats now live in @vigil/core —
+// their unit tests moved with them (packages/core/src/stats.test.ts).
 
-  const stats = computeSessionStats(sessions);
+// Marker unique to coach-prompts/core-rules.md — regression guard against
+// the grounding constitution drifting back into per-personality files
+// (drill-sergeant.md and proactive-extension.md each carried their own
+// independent, already-diverging copy before the Phase 1 refactor).
+const CORE_RULES_MARKER = "you never derive, you only phrase";
 
-  assert.deepEqual(stats["Pull"], { completed: 2, skipped: 0, skipEntries: [] });
-  assert.deepEqual(stats["Push"], { completed: 1, skipped: 0, skipEntries: [] });
-  assert.equal(stats["Legs"].completed, 0);
-  assert.equal(stats["Legs"].skipped, 2);
-  assert.deepEqual(stats["Legs"].skipEntries, [
-    { date: "2026-07-01", excuse: "too tired after work" },
-    { date: "2026-06-24", excuse: "work is crazy this week" },
-  ]);
+test("buildSystemPrompt includes core-rules regardless of personality", () => {
+  for (const personality of ["drill-sergeant", "mentor", "hype"] as const) {
+    const prompt = buildSystemPrompt(personality);
+    assert.match(prompt, new RegExp(CORE_RULES_MARKER), `missing core-rules marker for ${personality}`);
+  }
 });
 
-test("renderVerifiedStats flags a type with zero completed sessions as having no data", () => {
-  const stats = computeSessionStats([
-    { date: "2026-07-01", type: "Legs", status: "SKIPPED", excuse_given: "too tired" },
-    { date: "2026-06-24", type: "Legs", status: "SKIPPED", excuse_given: "busy" },
-  ]);
-
-  const rendered = renderVerifiedStats(stats);
-  assert.match(rendered, /0 completed, 2 skipped/);
-  assert.match(rendered, /No legs performance data exists/);
-  assert.match(rendered, /never reference progress, plateaus, or numbers/);
-});
-
-test("renderVerifiedStats reports a clean record for a never-skipped type", () => {
-  const stats = computeSessionStats([
-    { date: "2026-07-06", type: "Pull", status: "completed", highlight: "rows" },
-    { date: "2026-06-29", type: "Pull", status: "completed", highlight: "pull-ups" },
-  ]);
-
-  const rendered = renderVerifiedStats(stats);
-  assert.match(rendered, /Pull: 2 completed, never skipped/);
+test("buildSystemPrompt falls back to drill-sergeant for an unknown personality", () => {
+  const known = buildSystemPrompt("drill-sergeant");
+  const unknown = buildSystemPrompt("not-a-real-personality");
+  assert.equal(unknown, known);
 });

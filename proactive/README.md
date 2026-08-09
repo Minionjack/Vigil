@@ -87,12 +87,19 @@ the path is version-pinned and will break silently otherwise.)
    ```
 2. Add this line (every 30 min, 06:30–21:30):
    ```
-   */30 6-21 * * * cd /Users/jackkennedy/dev/vigil-app/proactive && /Users/jackkennedy/.nvm/versions/node/v20.19.3/bin/node node_modules/tsx/dist/cli.mjs src/check.ts >> /Users/jackkennedy/dev/vigil-app/proactive/cron.log 2>&1
+   */30 6-21 * * * cd /Users/jackkennedy/dev/vigil-app/proactive && /Users/jackkennedy/.nvm/versions/node/v20.19.3/bin/node /Users/jackkennedy/dev/vigil-app/node_modules/tsx/dist/cli.mjs src/check.ts >> /Users/jackkennedy/dev/vigil-app/proactive/cron.log 2>&1
    ```
    The `6-21` hour range is a coarse gate — the rules engine's own quiet-hours
    check (06:30/21:30) is what actually enforces the precise boundary. This
    exact command (swap `--dry-run` in to check) has already been verified to
    run cleanly on this machine.
+
+   Note `tsx` is resolved from the **repo root** `node_modules`, not
+   `proactive/node_modules` — since `packages/core` was added as an npm
+   workspace, `npm install` at the root hoists shared dependencies like
+   `tsx` there. A relative `node_modules/tsx/...` path (correct before the
+   workspace existed) silently stops resolving after any `npm install` at
+   root; this is why the path above is absolute.
 3. Save and quit. Confirm it's registered: `crontab -l`.
 4. **Grant cron Full Disk Access** if macOS blocks the job silently:
    System Settings → Privacy & Security → Full Disk Access → add

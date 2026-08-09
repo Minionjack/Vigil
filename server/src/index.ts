@@ -26,6 +26,7 @@ app.use(express.json());
 
 app.post("/chat", async (req, res) => {
   const messages: ChatMessage[] = req.body?.messages;
+  const personality: string | undefined = req.body?.personality;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: "Request body must include a non-empty `messages` array." });
@@ -35,7 +36,7 @@ app.post("/chat", async (req, res) => {
   const trimmed = messages.slice(-MAX_HISTORY_MESSAGES);
 
   try {
-    const system = buildSystemPrompt();
+    const system = buildSystemPrompt(personality);
     const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
