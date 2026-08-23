@@ -9,6 +9,24 @@
 // KNOWN_PERSONALITIES consumers now unified in packages/core/src/personality.ts.
 export type PersonalityId = "drill-sergeant" | "mentor" | "hype";
 
+export type MotionCharacter = "sharp" | "smooth" | "bouncy";
+
+// Motion as an extension of voice, the same way coach-prompts/personalities/
+// already differentiate tone in words. Values are half-cycle durations (ms)
+// and scale multipliers for the Orb's breathing/speaking animation — see
+// App.tsx's useOrbMotion. Not decorative tuning: each personality's numbers
+// are a deliberate, distinct character —
+//   drill-sergeant: fast, small amplitude, sharp snap — controlled intensity.
+//   mentor: slow, moderate amplitude, smooth ease — unhurried and steady.
+//   hype: fast AND large amplitude, bouncy overshoot — can't sit still.
+export interface Motion {
+  character: MotionCharacter;
+  idleDurationMs: number;
+  idleScale: number; // peak scale multiplier during idle "breathing"
+  speakingDurationMs: number;
+  speakingScale: number; // peak scale multiplier while the coach is "speaking"
+}
+
 export interface Personality {
   id: PersonalityId;
   name: string;
@@ -16,6 +34,7 @@ export interface Personality {
   ethos: string;
   initials: string;
   accent: string;
+  motion: Motion;
 }
 
 export const PERSONALITIES: Personality[] = [
@@ -26,6 +45,7 @@ export const PERSONALITIES: Personality[] = [
     ethos: "Direct, demanding, impossible to bullshit.",
     initials: "SV",
     accent: "#7C6FFF",
+    motion: { character: "sharp", idleDurationMs: 700, idleScale: 1.05, speakingDurationMs: 260, speakingScale: 1.1 },
   },
   {
     id: "mentor",
@@ -34,6 +54,7 @@ export const PERSONALITIES: Personality[] = [
     ethos: "Plays the long game. Pushes with questions, not orders.",
     initials: "M",
     accent: "#4CE0B3",
+    motion: { character: "smooth", idleDurationMs: 2200, idleScale: 1.07, speakingDurationMs: 900, speakingScale: 1.09 },
   },
   {
     id: "hype",
@@ -42,6 +63,7 @@ export const PERSONALITIES: Personality[] = [
     ethos: "Treats every session like the main event.",
     initials: "H",
     accent: "#FF9F4C",
+    motion: { character: "bouncy", idleDurationMs: 550, idleScale: 1.12, speakingDurationMs: 220, speakingScale: 1.16 },
   },
 ];
 

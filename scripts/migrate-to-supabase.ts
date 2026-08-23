@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 
 // One-time import of the Milestone 0.5 experiment's data (journal.jsonl +
 // state.json sessions) as the first rows of `events`, timestamps
@@ -29,7 +30,13 @@ const SUPABASE_URL = requireEnv("SUPABASE_URL");
 const SERVICE_ROLE_KEY = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
 const USER_ID = requireEnv("MIGRATION_USER_ID");
 
-const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+// Node 20 (this environment) has no native WebSocket global, which
+// @supabase/supabase-js's realtime client requires just to construct —
+// even though this script never uses realtime. Providing `ws` explicitly
+// is the documented workaround for Node < 22.
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  realtime: { transport: WebSocket as never },
+});
 
 interface JournalEntry {
   kind: "fired" | "outcome";

@@ -15,7 +15,8 @@
 // runs today, independent of this function ever being deployed.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { generateDigest, type DigestEvent } from "../../../packages/core/src/index.ts";
+import { generateDigest } from "../_shared/core/generateDigest.ts";
+import type { DigestEvent } from "../_shared/core/digest.ts";
 
 Deno.serve(async (_req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

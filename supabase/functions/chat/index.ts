@@ -1,13 +1,16 @@
 // Supabase Edge Function — POST /chat
 //
-// UNVERIFIED: written against Supabase's documented Edge Function
-// conventions (Deno runtime, npm: specifiers, Deno.serve) but never
-// deployed or run — there is no live Supabase project yet. The relative
-// import into packages/core below is the part most likely to need
-// adjustment once real deployment is attempted; Supabase's bundler traces
-// imports from the function's own directory outward, and cross-directory
-// relative imports sometimes need an import map. Flagged in
-// SUPABASE-SETUP.md.
+// DEPLOYED AND VERIFIED against the real project. Two things the initial
+// unverified draft got wrong, found by an actual deploy attempt:
+//   1. packages/core's `.js`-extension internal imports (Node/tsx
+//      convention) aren't resolved by Deno's bundler — fixed by vendoring
+//      into ../_shared/core/ (see its README.md for the full story).
+//   2. coach-prompts/*.md was read at runtime via Deno.readTextFile with
+//      a path reaching outside this function's directory — the deployed
+//      function's filesystem doesn't have it (deploy only uploads what's
+//      in the static import graph), confirmed by a live 404. Fixed by
+//      generating ../_shared/prompts.ts (scripts/generate-edge-prompts.ts)
+//      and importing it normally instead.
 //
 // Same contract as server/src/index.ts's /chat route: { messages, personality }
 // in, { reply } out. Personality/profile/digest assembly now reads from
@@ -18,10 +21,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   computeSessionStats,
   renderVerifiedStats,
-  resolvePersonality,
   type CoreSession,
   type WeightEntry,
-} from "../../../packages/core/src/index.ts";
+} from "../_shared/core/stats.ts";
+import { resolvePersonality } from "../_shared/core/personality.ts";
+import { CORE_RULES, PERSONALITY_PROMPTS } from "../_shared/prompts.ts";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -54,7 +58,8 @@ Deno.serve(async (req) => {
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, anonKey!, {
     global: { headers: { Authorization: authHeader } },
   });
 
@@ -73,11 +78,12 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Request body must include a non-empty `messages` array." }), { status: 400 });
   }
 
-  const [{ data: profile }, { data: events }, { data: digests }] = await Promise.all([
+  const [profileResult, { data: events }, { data: digests }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", user.id).single(),
     supabase.from("events").select("occurred_at, kind, payload").eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(200),
     supabase.from("memory_digests").select("period_start, period_end, digest").eq("user_id", user.id).order("period_start", { ascending: false }).limit(4),
   ]);
+  const profile = profileResult.data;
 
   if (!profile) {
     return new Response(JSON.stringify({ error: "No profile for this user — onboarding incomplete." }), { status: 404 });
@@ -87,10 +93,8 @@ Deno.serve(async (req) => {
   const sessions = eventsToSessions(events ?? []);
   const verifiedStats = renderVerifiedStats(computeSessionStats(sessions, today), latestWeight(events ?? []));
 
-  const [coreRules, personalityVoice] = await Promise.all([
-    Deno.readTextFile(new URL("../../../coach-prompts/core-rules.md", import.meta.url)),
-    Deno.readTextFile(new URL(`../../../coach-prompts/personalities/${personality}.md`, import.meta.url)),
-  ]);
+  const coreRules = CORE_RULES;
+  const personalityVoice = PERSONALITY_PROMPTS[personality];
 
   const digestSection =
     digests && digests.length > 0
