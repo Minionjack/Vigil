@@ -19,3 +19,46 @@ AI personal trainer app. The core bet: people pay for an AI that **initiates, re
 
 ## What NOT to build yet
 Auth, onboarding, Supabase, push notifications, voice, avatars, workout logging, real memory. All later phases (see ROADMAP.md).
+
+## Architectural constitution
+
+### Truth hierarchy
+1. Raw events are the historical source of truth.
+2. Derived facts (counts, streaks, "days since", next-session) are
+   computed deterministically from raw events, in packages/core, and
+   nowhere else.
+3. LLM-written memory (digests) is a labeled impression layer, never a
+   factual source — if a raw event, a computed fact, and a digest ever
+   conflict, the raw event wins, unconditionally.
+
+### The AI boundary
+The AI may: phrase, explain, motivate, ask questions, interpret
+qualitative notes.
+The AI may not: invent numbers, calculate statistics, infer dates not
+provided, claim a streak not computed, or decide whether a deterministic
+rule fired.
+
+If a value can be calculated deterministically from logged data, it is
+calculated in code — never inferred by the model. This line is sacred.
+
+### Event integrity
+Every event distinguishes `occurred_at` (when the thing actually
+happened) from `recorded_at` (when it was logged). These are not the
+same field. Backfilled/late-logged events are expected, not exceptional
+— the schema must hold both timestamps honestly rather than collapsing
+them into one.
+
+### No duplicate truth
+Business logic that computes a fact about the client exists in exactly
+one place: packages/core. The server, the proactive engine, the Expo
+client, and any scripts import it — none of them re-derive it.
+
+### Before any change is "done"
+`npm test && npm run typecheck` in every affected package, then review
+the diff. `typecheck` (`tsc --noEmit`) exists in every package as of the
+architecture-hardening audit. `lint` does not yet — no ESLint config
+exists anywhere in the repo despite it being on the recommended VS Code
+extensions list, so it's deliberately left out of this line rather than
+asserted as if it already ran. Add it back here the day a real config
+lands, not before.
+No green, no done.
