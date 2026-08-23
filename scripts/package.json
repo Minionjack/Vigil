@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "migrate-to-supabase": "tsx migrate-to-supabase.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

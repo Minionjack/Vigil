@@ -1,10 +1,18 @@
 {
   "name": "vigil-app",
   "private": true,
+  "type": "module",
   "workspaces": [
     "packages/*",
     "server",
     "proactive",
     "scripts"
-  ]
+  ],
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "^10.9.0",
+    "typescript-eslint": "^8.67.0"
+  }
 }
