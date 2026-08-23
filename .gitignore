@@ -22,6 +22,11 @@ the-vigil/android/
 # Proactive stub — personal training data + ntfy secret topic
 proactive/state.json
 proactive/journal.jsonl
+proactive/cron.log
+
+# Playwright artifacts
+the-vigil/test-results/
+the-vigil/playwright-report/
 
 # macOS
 .DS_Store

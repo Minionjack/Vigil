@@ -85,7 +85,13 @@ function PickerScreen({ onSelect, canDismiss, onDismiss }: { onSelect: (id: Pers
       </View>
       <View style={styles.pickerCards}>
         {PERSONALITIES.map((p) => (
-          <TouchableOpacity key={p.id} style={styles.pickerCard} onPress={() => onSelect(p.id)} activeOpacity={0.8}>
+          <TouchableOpacity
+            key={p.id}
+            testID={`picker-card-${p.id}`}
+            style={styles.pickerCard}
+            onPress={() => onSelect(p.id)}
+            activeOpacity={0.8}
+          >
             <Orb size={44} color={p.accent} initials={p.initials} />
             <View style={styles.pickerCardText}>
               <Text style={styles.pickerCardName}>{p.name}</Text>
@@ -110,7 +116,12 @@ function MessageBubble({ message, coachAccent, coachInitials }: { message: Messa
           isCoach ? styles.bubbleTailLeft : styles.bubbleTailRight,
         ]}
       >
-        <Text style={isCoach ? styles.bubbleTextCoach : styles.bubbleTextUser}>{message.content}</Text>
+        <Text
+          testID={isCoach ? "coach-message" : "user-message"}
+          style={isCoach ? styles.bubbleTextCoach : styles.bubbleTextUser}
+        >
+          {message.content}
+        </Text>
       </View>
     </View>
   );
@@ -283,6 +294,7 @@ export default function App() {
 
         <View style={styles.inputRow}>
           <TextInput
+            testID="chat-input"
             style={styles.input}
             value={input}
             onChangeText={setInput}
@@ -290,7 +302,7 @@ export default function App() {
             placeholderTextColor={colors.textFaint}
             multiline
           />
-          <TouchableOpacity style={styles.sendButton} onPress={sendMessage} disabled={isTyping}>
+          <TouchableOpacity testID="send-button" style={styles.sendButton} onPress={sendMessage} disabled={isTyping}>
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
         </View>

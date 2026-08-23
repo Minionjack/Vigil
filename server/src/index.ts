@@ -24,6 +24,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Health check — also what Playwright's webServer readiness probe hits
+// (the.vigil/playwright.config.ts), since a plain GET / previously 404'd
+// forever (only POST /chat existed) and the test run would just hang
+// until its startup timeout.
+app.get("/", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.post("/chat", async (req, res) => {
   const messages: ChatMessage[] = req.body?.messages;
   const personality: string | undefined = req.body?.personality;
