@@ -1,5 +1,5 @@
 export interface DigestEvent {
-  ts: string; // ISO timestamp
+  occurred_at: string; // ISO timestamp — when the event actually happened, not when it was logged
   kind: string; // e.g. "session_completed", "session_skipped", "note", "nudge_fired", "nudge_outcome"
   payload: Record<string, unknown>;
 }
@@ -14,7 +14,7 @@ export interface DigestEvent {
  * read alongside that block, never instead of it.
  */
 export function buildDigestPrompt(events: DigestEvent[], periodStart: string, periodEnd: string): string {
-  const eventLines = events.map((e) => `- ${e.ts} [${e.kind}] ${JSON.stringify(e.payload)}`).join("\n");
+  const eventLines = events.map((e) => `- ${e.occurred_at} [${e.kind}] ${JSON.stringify(e.payload)}`).join("\n");
 
   return `You are summarizing a client's raw activity log for a coaching memory system, covering ${periodStart} to ${periodEnd}.
 

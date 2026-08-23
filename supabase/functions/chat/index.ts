@@ -18,20 +18,15 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   computeSessionStats,
   renderVerifiedStats,
+  resolvePersonality,
   type CoreSession,
   type WeightEntry,
 } from "../../../packages/core/src/index.ts";
 
 const MODEL = "claude-sonnet-4-6";
-const KNOWN_PERSONALITIES = ["drill-sergeant", "mentor", "hype"] as const;
-type PersonalityId = (typeof KNOWN_PERSONALITIES)[number];
-
-function resolvePersonality(personality: unknown): PersonalityId {
-  return (KNOWN_PERSONALITIES as readonly unknown[]).includes(personality) ? (personality as PersonalityId) : "drill-sergeant";
-}
 
 interface EventRow {
-  ts: string;
+  occurred_at: string;
   kind: string;
   payload: Record<string, unknown>;
 }
@@ -40,7 +35,7 @@ function eventsToSessions(events: EventRow[]): CoreSession[] {
   return events
     .filter((e) => e.kind === "session_completed" || e.kind === "session_skipped")
     .map((e) => ({
-      date: e.ts.slice(0, 10),
+      date: e.occurred_at.slice(0, 10),
       type: String(e.payload.type ?? "Unknown"),
       status: e.kind === "session_completed" ? "completed" : "skipped",
       excuse: e.payload.excuse as string | undefined,
@@ -48,9 +43,9 @@ function eventsToSessions(events: EventRow[]): CoreSession[] {
 }
 
 function latestWeight(events: EventRow[]): WeightEntry | null {
-  const weighIns = events.filter((e) => e.kind === "weight_logged").sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  const weighIns = events.filter((e) => e.kind === "weight_logged").sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
   if (weighIns.length === 0) return null;
-  return { date: weighIns[0].ts.slice(0, 10), weight_kg: Number(weighIns[0].payload.weight_kg) };
+  return { date: weighIns[0].occurred_at.slice(0, 10), weight_kg: Number(weighIns[0].payload.weight_kg) };
 }
 
 Deno.serve(async (req) => {
@@ -80,7 +75,7 @@ Deno.serve(async (req) => {
 
   const [{ data: profile }, { data: events }, { data: digests }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", user.id).single(),
-    supabase.from("events").select("ts, kind, payload").eq("user_id", user.id).order("ts", { ascending: false }).limit(200),
+    supabase.from("events").select("occurred_at, kind, payload").eq("user_id", user.id).order("occurred_at", { ascending: false }).limit(200),
     supabase.from("memory_digests").select("period_start, period_end, digest").eq("user_id", user.id).order("period_start", { ascending: false }).limit(4),
   ]);
 

@@ -35,17 +35,17 @@ Deno.serve(async (_req) => {
   for (const { user_id } of profiles ?? []) {
     const { data: events, error: eventsError } = await supabase
       .from("events")
-      .select("ts, kind, payload")
+      .select("occurred_at, kind, payload")
       .eq("user_id", user_id)
-      .gte("ts", periodStart.toISOString())
-      .lt("ts", periodEnd.toISOString());
+      .gte("occurred_at", periodStart.toISOString())
+      .lt("occurred_at", periodEnd.toISOString());
 
     if (eventsError) {
       results.push({ user_id, ok: false });
       continue;
     }
 
-    const digestEvents: DigestEvent[] = (events ?? []).map((e) => ({ ts: e.ts, kind: e.kind, payload: e.payload }));
+    const digestEvents: DigestEvent[] = (events ?? []).map((e) => ({ occurred_at: e.occurred_at, kind: e.kind, payload: e.payload }));
     const digest = await generateDigest(digestEvents, periodStartStr, periodEndStr);
 
     const { error: insertError } = await supabase.from("memory_digests").insert({

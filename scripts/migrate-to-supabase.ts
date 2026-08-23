@@ -52,7 +52,12 @@ interface Session {
 
 interface EventRow {
   user_id: string;
-  ts: string;
+  // The historical moment the event happened, preserved from the source
+  // data — never left to default. recorded_at is deliberately NOT set
+  // here: it should reflect when this row was actually written, i.e. when
+  // this migration runs, which is exactly what its DB default (now())
+  // already gives it.
+  occurred_at: string;
   kind: string;
   payload: Record<string, unknown>;
 }
@@ -79,14 +84,14 @@ async function main() {
     if (entry.kind === "fired") {
       events.push({
         user_id: USER_ID,
-        ts: entry.timestamp!,
+        occurred_at: entry.timestamp!,
         kind: "nudge_fired",
         payload: { rule: entry.rule, message_text: entry.message_text, delivered: entry.delivered },
       });
     } else if (entry.kind === "outcome") {
       events.push({
         user_id: USER_ID,
-        ts: entry.timestamp!,
+        occurred_at: entry.timestamp!,
         kind: "nudge_outcome",
         payload: { rule: entry.rule, fired_at: entry.fired_at, acted: entry.acted, note: entry.note },
       });
@@ -100,7 +105,7 @@ async function main() {
       // noon, the same convention packages/core's date helpers use, so
       // this doesn't silently roll to a different calendar day depending
       // on which timezone reads it back.
-      ts: `${s.date}T12:00:00Z`,
+      occurred_at: `${s.date}T12:00:00Z`,
       kind: s.status === "completed" ? "session_completed" : "session_skipped",
       payload: s.status === "completed" ? { type: s.type, note: s.note } : { type: s.type, excuse: s.excuse },
     });

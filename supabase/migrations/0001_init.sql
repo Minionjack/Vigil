@@ -34,7 +34,13 @@ comment on table public.profiles is
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  ts timestamptz not null default now(),
+  -- occurred_at is never given a default: every insert path (the log
+  -- thin-client, the edge functions, the migration script) must supply it
+  -- explicitly. A default of now() is exactly how occurred_at and
+  -- recorded_at silently collapse into the same value for backfilled
+  -- entries — see CLAUDE.md's Event integrity section.
+  occurred_at timestamptz not null,
+  recorded_at timestamptz not null default now(),
   kind text not null check (kind in (
     'session_completed',
     'session_skipped',
@@ -45,8 +51,7 @@ create table if not exists public.events (
     'program_changed',
     'correction'
   )),
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  payload jsonb not null default '{}'::jsonb
 );
 
 comment on table public.events is
@@ -55,9 +60,18 @@ comment on table public.events is
    existing row. "Current program" is the payload of the most recent
    program_changed event, not a separate mutable table, for the same
    reason next_session is computed rather than stored: one append-only
-   log, nothing to drift out of sync with itself.';
+   log, nothing to drift out of sync with itself.
 
-create index if not exists events_user_id_ts_idx on public.events (user_id, ts desc);
+   occurred_at (when the thing actually happened) and recorded_at (when
+   this row was written) are deliberately separate columns, not one
+   timestamp doing both jobs. A session logged three days late has an
+   occurred_at from three days ago and a recorded_at of now — collapsing
+   these was flagged in the architecture-hardening audit as a real
+   correctness bug: nightly-digest windows events by timestamp, and a
+   backfilled session with no distinct recorded_at would misattribute
+   itself to the wrong digest period.';
+
+create index if not exists events_user_id_occurred_at_idx on public.events (user_id, occurred_at desc);
 create index if not exists events_user_id_kind_idx on public.events (user_id, kind);
 
 create table if not exists public.memory_digests (
