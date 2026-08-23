@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { runCheck } from "./check.js";
 import type { CheckDeps } from "./check.js";
 import type { FiredLogEntry, State } from "./types.js";
@@ -63,12 +62,12 @@ test("runCheck: no rule fired means no generation, no delivery, no journaling", 
 
   const result = await runCheck(state, now, [], "/fake/journal.jsonl", false, deps);
 
-  assert.equal(result.fired, null);
-  assert.equal(result.delivered, false);
-  assert.equal(result.journaled, false);
-  assert.equal(deps.calls.generateMessage.length, 0);
-  assert.equal(deps.calls.deliverNtfy.length, 0);
-  assert.equal(deps.calls.appendJournal.length, 0);
+  expect(result.fired).toBe(null);
+  expect(result.delivered).toBe(false);
+  expect(result.journaled).toBe(false);
+  expect(deps.calls.generateMessage.length).toBe(0);
+  expect(deps.calls.deliverNtfy.length).toBe(0);
+  expect(deps.calls.appendJournal.length).toBe(0);
 });
 
 test("runCheck: dry run generates the message but never delivers or journals", async () => {
@@ -78,13 +77,13 @@ test("runCheck: dry run generates the message but never delivers or journals", a
 
   const result = await runCheck(state, now, [], "/fake/journal.jsonl", true, deps);
 
-  assert.equal(result.fired?.rule, "R1");
-  assert.equal(result.message, "a fake generated message");
-  assert.equal(result.delivered, false);
-  assert.equal(result.journaled, false);
-  assert.equal(deps.calls.generateMessage.length, 1);
-  assert.equal(deps.calls.deliverNtfy.length, 0);
-  assert.equal(deps.calls.appendJournal.length, 0);
+  expect(result.fired?.rule).toBe("R1");
+  expect(result.message).toBe("a fake generated message");
+  expect(result.delivered).toBe(false);
+  expect(result.journaled).toBe(false);
+  expect(deps.calls.generateMessage.length).toBe(1);
+  expect(deps.calls.deliverNtfy.length).toBe(0);
+  expect(deps.calls.appendJournal.length).toBe(0);
 });
 
 test("runCheck: a real (non-dry-run) fire delivers then journals, in that order, with the generated message", async () => {
@@ -94,16 +93,16 @@ test("runCheck: a real (non-dry-run) fire delivers then journals, in that order,
 
   const result = await runCheck(state, now, [], "/fake/journal.jsonl", false, deps);
 
-  assert.equal(result.delivered, true);
-  assert.equal(result.journaled, true);
-  assert.equal(deps.calls.deliverNtfy.length, 1);
-  assert.deepEqual(deps.calls.deliverNtfy[0], { topic: "test-topic", message: "a fake generated message" });
-  assert.equal(deps.calls.appendJournal.length, 1);
+  expect(result.delivered).toBe(true);
+  expect(result.journaled).toBe(true);
+  expect(deps.calls.deliverNtfy.length).toBe(1);
+  expect(deps.calls.deliverNtfy[0]).toEqual({ topic: "test-topic", message: "a fake generated message" });
+  expect(deps.calls.appendJournal.length).toBe(1);
   const journaled = deps.calls.appendJournal[0] as { entry: { kind: string; rule: string; message_text: string; delivered: boolean } };
-  assert.equal(journaled.entry.kind, "fired");
-  assert.equal(journaled.entry.rule, "R1");
-  assert.equal(journaled.entry.message_text, "a fake generated message");
-  assert.equal(journaled.entry.delivered, true);
+  expect(journaled.entry.kind).toBe("fired");
+  expect(journaled.entry.rule).toBe("R1");
+  expect(journaled.entry.message_text).toBe("a fake generated message");
+  expect(journaled.entry.delivered).toBe(true);
 });
 
 test("runCheck: an acknowledgment is computed and passed through to generateMessage", async () => {
@@ -120,9 +119,9 @@ test("runCheck: an acknowledgment is computed and passed through to generateMess
 
   const result = await runCheck(state, now, firedLog, "/fake/journal.jsonl", true, deps);
 
-  assert.equal(result.fired?.rule, "R1");
-  assert.deepEqual(result.ack, { date: "2026-07-06", type: "Push" });
-  assert.equal(deps.calls.generateMessage.length, 1);
+  expect(result.fired?.rule).toBe("R1");
+  expect(result.ack).toEqual({ date: "2026-07-06", type: "Push" });
+  expect(deps.calls.generateMessage.length).toBe(1);
   const call = deps.calls.generateMessage[0] as { ack: { date: string; type: string } | null };
-  assert.deepEqual(call.ack, { date: "2026-07-06", type: "Push" });
+  expect(call.ack).toEqual({ date: "2026-07-06", type: "Push" });
 });

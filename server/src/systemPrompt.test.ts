@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { buildSystemPrompt } from "./systemPrompt.js";
 
 // computeSessionStats and renderVerifiedStats now live in @vigil/core —
@@ -14,12 +13,12 @@ const CORE_RULES_MARKER = "you never derive, you only phrase";
 test("buildSystemPrompt includes core-rules regardless of personality", () => {
   for (const personality of ["drill-sergeant", "mentor", "hype"] as const) {
     const prompt = buildSystemPrompt(personality);
-    assert.match(prompt, new RegExp(CORE_RULES_MARKER), `missing core-rules marker for ${personality}`);
+    expect(prompt, `missing core-rules marker for ${personality}`).toMatch(new RegExp(CORE_RULES_MARKER));
   }
 });
 
 test("buildSystemPrompt falls back to drill-sergeant for an unknown personality", () => {
   const known = buildSystemPrompt("drill-sergeant");
   const unknown = buildSystemPrompt("not-a-real-personality");
-  assert.equal(unknown, known);
+  expect(unknown).toBe(known);
 });

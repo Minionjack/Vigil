@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { renderState } from "./state.js";
 import type { State } from "./types.js";
 
@@ -24,8 +23,8 @@ test("renderState labels each session with its actual weekday, not left for the 
   };
 
   const rendered = renderState(state, "2026-07-13");
-  assert.match(rendered, /2026-07-06 \(Monday\) Push/);
-  assert.doesNotMatch(rendered, /2026-07-06 \(Friday\)/);
+  expect(rendered).toMatch(/2026-07-06 \(Monday\) Push/);
+  expect(rendered).not.toMatch(/2026-07-06 \(Friday\)/);
 });
 
 test("renderState states weight as 'none logged yet' — the proactive stub has no weight source yet", () => {
@@ -43,5 +42,5 @@ test("renderState states weight as 'none logged yet' — the proactive stub has 
   };
 
   const rendered = renderState(state, "2026-07-13");
-  assert.match(rendered, /Weight: none logged yet/);
+  expect(rendered).toMatch(/Weight: none logged yet/);
 });

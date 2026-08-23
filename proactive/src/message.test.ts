@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { buildSystemPrompt } from "./message.js";
 import type { RuleFired, State } from "./types.js";
 
@@ -39,12 +38,12 @@ const now = new Date("2026-07-13T14:00:00Z");
 test("buildSystemPrompt (proactive) includes core-rules regardless of personality", () => {
   for (const personality of ["drill-sergeant", "mentor", "hype"] as const) {
     const prompt = buildSystemPrompt(baseState(personality), now, fired, null);
-    assert.match(prompt, new RegExp(CORE_RULES_MARKER), `missing core-rules marker for ${personality}`);
+    expect(prompt, `missing core-rules marker for ${personality}`).toMatch(new RegExp(CORE_RULES_MARKER));
   }
 });
 
 test("buildSystemPrompt (proactive) falls back to drill-sergeant when personality is unset", () => {
   const unset = buildSystemPrompt(baseState(undefined), now, fired, null);
   const explicit = buildSystemPrompt(baseState("drill-sergeant"), now, fired, null);
-  assert.equal(unset, explicit);
+  expect(unset).toBe(explicit);
 });

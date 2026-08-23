@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { findUnresolvedNudge } from "./outcome.js";
 import type { JournalEntry, RuleId } from "./types.js";
 
@@ -17,21 +16,21 @@ test("finds a delivered R1 nudge with no outcome yet, within the 4h window", () 
   const journal = [fired("2026-07-13T14:30:00Z", "R1")];
   const now = new Date("2026-07-13T15:30:00Z"); // 1h later
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result?.timestamp, "2026-07-13T14:30:00Z");
+  expect(result?.timestamp).toBe("2026-07-13T14:30:00Z");
 });
 
 test("does not return a nudge already resolved with an outcome", () => {
   const journal = [fired("2026-07-13T14:30:00Z", "R1"), outcome("2026-07-13T14:30:00Z", true)];
   const now = new Date("2026-07-13T15:00:00Z");
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R1: does not return a nudge outside its 4-hour window", () => {
   const journal = [fired("2026-07-13T10:00:00Z", "R1")];
   const now = new Date("2026-07-13T15:00:00Z"); // 5h later
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("skips a resolved nudge to find an earlier unresolved one, still within its window", () => {
@@ -42,7 +41,7 @@ test("skips a resolved nudge to find an earlier unresolved one, still within its
   ];
   const now = new Date("2026-07-13T14:30:00Z"); // 2.5h after the first (R1, within 4h), 0.5h after the second (resolved)
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result?.timestamp, "2026-07-13T12:00:00Z");
+  expect(result?.timestamp).toBe("2026-07-13T12:00:00Z");
 });
 
 test("R2: a same-calendar-day session in the evening still resolves a morning nudge", () => {
@@ -50,7 +49,7 @@ test("R2: a same-calendar-day session in the evening still resolves a morning nu
   const journal = [fired("2026-07-14T04:00:00Z", "R2")];
   const now = new Date("2026-07-14T14:45:00Z");
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result?.timestamp, "2026-07-14T04:00:00Z");
+  expect(result?.timestamp).toBe("2026-07-14T04:00:00Z");
 });
 
 test("R2: a resolution attempt the following local day is not eligible", () => {
@@ -58,7 +57,7 @@ test("R2: a resolution attempt the following local day is not eligible", () => {
   const journal = [fired("2026-07-14T04:00:00Z", "R2")];
   const now = new Date("2026-07-15T04:00:00Z");
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R1: a session logged 5 hours after a 17:45 nudge is not eligible under the 4h window", () => {
@@ -66,5 +65,5 @@ test("R1: a session logged 5 hours after a 17:45 nudge is not eligible under the
   const journal = [fired("2026-07-13T13:45:00Z", "R1")];
   const now = new Date("2026-07-13T18:45:00Z"); // 5h later
   const result = findUnresolvedNudge(journal, now, TZ);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });

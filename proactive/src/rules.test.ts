@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import { computeAcknowledgment, evaluateRules } from "./rules.js";
 import type { FiredLogEntry, State } from "./types.js";
 
@@ -35,14 +34,14 @@ test("R1 fires within the nudge window on a training day with nothing logged", (
   const state = baseState();
   const now = new Date("2026-07-06T17:50:00Z"); // 45 min before 18:30
   const result = evaluateRules(state, now, []);
-  assert.equal(result?.rule, "R1");
+  expect(result?.rule).toBe("R1");
 });
 
 test("R1 does not fire before the nudge window opens", () => {
   const state = baseState();
   const now = new Date("2026-07-06T10:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R1 does not fire twice in the same day", () => {
@@ -50,7 +49,7 @@ test("R1 does not fire twice in the same day", () => {
   const now = new Date("2026-07-06T19:00:00Z");
   const firedLog: FiredLogEntry[] = [{ date: "2026-07-06", rule: "R1" }];
   const result = evaluateRules(state, now, firedLog);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R1 does not fire once today's session is logged", () => {
@@ -59,7 +58,7 @@ test("R1 does not fire once today's session is logged", () => {
   });
   const now = new Date("2026-07-06T19:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 // 2026-07-07 is a Tuesday; 2026-07-06 (Monday) was the training day with nothing logged.
@@ -67,7 +66,7 @@ test("R2 fires the morning after a training day with no session logged", () => {
   const state = baseState();
   const now = new Date("2026-07-07T07:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result?.rule, "R2");
+  expect(result?.rule).toBe("R2");
 });
 
 test("R2 does not fire if yesterday's session was logged (even as skipped)", () => {
@@ -77,7 +76,7 @@ test("R2 does not fire if yesterday's session was logged (even as skipped)", () 
   const now = new Date("2026-07-07T07:00:00Z");
   const result = evaluateRules(state, now, []);
   // Falls through to R1 evaluation for today (Tuesday, not a training day) -> null.
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R2 takes priority over R1 when both are eligible on the same tick", () => {
@@ -86,7 +85,7 @@ test("R2 takes priority over R1 when both are eligible on the same tick", () => 
   const state = baseState({ client: { ...baseState().client, training_days: ["Monday", "Tuesday"] } });
   const now = new Date("2026-07-07T17:50:00Z"); // Tuesday, within the nudge window; Monday also unlogged
   const result = evaluateRules(state, now, []);
-  assert.equal(result?.rule, "R2");
+  expect(result?.rule).toBe("R2");
 });
 
 test("R3 fires when the same session type is skipped twice in trailing 21 days", () => {
@@ -101,8 +100,8 @@ test("R3 fires when the same session type is skipped twice in trailing 21 days",
   // day miss, so only R3 should be eligible.
   const now = new Date("2026-07-08T10:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result?.rule, "R3");
-  assert.equal(result?.patternType, "Legs");
+  expect(result?.rule).toBe("R3");
+  expect(result?.patternType).toBe("Legs");
 });
 
 test("R3 does not fire twice in the same week", () => {
@@ -115,7 +114,7 @@ test("R3 does not fire twice in the same week", () => {
   const now = new Date("2026-07-08T10:00:00Z");
   const firedLog: FiredLogEntry[] = [{ date: "2026-07-06", rule: "R3" }]; // same week (Mon 07-06)
   const result = evaluateRules(state, now, firedLog);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R4 fires on the last scheduled training day when the week is short", () => {
@@ -125,7 +124,7 @@ test("R4 fires on the last scheduled training day when the week is short", () =>
   // Friday 07-10 is the last training day (Mon/Wed/Fri), outside R1's window and not a fresh no-show morning.
   const now = new Date("2026-07-10T10:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result?.rule, "R4");
+  expect(result?.rule).toBe("R4");
 });
 
 test("R4 does not fire once the week's quota is already met", () => {
@@ -138,7 +137,7 @@ test("R4 does not fire once the week's quota is already met", () => {
   });
   const now = new Date("2026-07-10T10:00:00Z");
   const result = evaluateRules(state, now, []);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("hard cap: no rule fires once max_messages_per_day is reached", () => {
@@ -149,14 +148,14 @@ test("hard cap: no rule fires once max_messages_per_day is reached", () => {
     { date: "2026-07-06", rule: "R4" },
   ];
   const result = evaluateRules(state, now, firedLog);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("quiet hours: nothing fires outside the allowed window", () => {
   const state = baseState();
   const now = new Date("2026-07-06T22:00:00Z"); // after 21:30
   const result = evaluateRules(state, now, []);
-  assert.equal(result, null);
+  expect(result).toBe(null);
 });
 
 test("R5: acknowledges a completed session that followed an R1 nudge", () => {
@@ -165,7 +164,7 @@ test("R5: acknowledges a completed session that followed an R1 nudge", () => {
   });
   const firedLog: FiredLogEntry[] = [{ date: "2026-07-06", rule: "R1" }];
   const ack = computeAcknowledgment(state, firedLog);
-  assert.deepEqual(ack, { date: "2026-07-06", type: "Push" });
+  expect(ack).toEqual({ date: "2026-07-06", type: "Push" });
 });
 
 test("R5: does not re-acknowledge once a later message has already gone out", () => {
@@ -177,7 +176,7 @@ test("R5: does not re-acknowledge once a later message has already gone out", ()
     { date: "2026-07-08", rule: "R1" },
   ];
   const ack = computeAcknowledgment(state, firedLog);
-  assert.equal(ack, null);
+  expect(ack).toBe(null);
 });
 
 test("R5: no acknowledgment when the nudged session was never completed", () => {
@@ -186,5 +185,5 @@ test("R5: no acknowledgment when the nudged session was never completed", () => 
   });
   const firedLog: FiredLogEntry[] = [{ date: "2026-07-06", rule: "R1" }];
   const ack = computeAcknowledgment(state, firedLog);
-  assert.equal(ack, null);
+  expect(ack).toBe(null);
 });

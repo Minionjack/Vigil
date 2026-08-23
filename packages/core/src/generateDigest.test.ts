@@ -1,6 +1,5 @@
-import assert from "node:assert/strict";
 import path from "node:path";
-import { test } from "node:test";
+import { test, expect } from "vitest";
 import dotenv from "dotenv";
 import { generateDigest } from "./generateDigest.js";
 import type { DigestEvent } from "./digest.js";
@@ -17,7 +16,14 @@ const SYNTHETIC_PERIOD: DigestEvent[] = [
   { occurred_at: "2026-07-17T20:00:00Z", kind: "session_skipped", payload: { type: "Legs", excuse: "work dinner ran long" } },
 ];
 
-test("generateDigest never states a number for a synthetic two-week period", async () => {
-  const digest = await generateDigest(SYNTHETIC_PERIOD, "2026-07-06", "2026-07-19");
-  assert.match(digest, /^\D*$/, `digest contained a digit: "${digest}"`);
-});
+// Vitest's default per-test timeout (5000ms) is shorter than node:test's
+// effective default and shorter than a live Claude API call reliably
+// completes in — raised explicitly rather than left to fail intermittently.
+test(
+  "generateDigest never states a number for a synthetic two-week period",
+  async () => {
+    const digest = await generateDigest(SYNTHETIC_PERIOD, "2026-07-06", "2026-07-19");
+    expect(digest, `digest contained a digit: "${digest}"`).toMatch(/^\D*$/);
+  },
+  15000
+);
