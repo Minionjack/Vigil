@@ -62,3 +62,14 @@ extensions list, so it's deliberately left out of this line rather than
 asserted as if it already ran. Add it back here the day a real config
 lands, not before.
 No green, no done.
+
+## the-vigil verification (Expo Go, real device — not Playwright/browser)
+Before any UI change is considered done:
+1. `npm run doctor && npm run typecheck` — both clean.
+2. Reload in Expo Go on a real phone. Check for the red error screen or a
+   Metro bundler error before anything else.
+3. Wait for an actual screenshot of the real device. Do not mark a UI
+   task complete from typecheck passing alone — visual correctness on a
+   real phone is the bar, per this file's existing "test on a real phone"
+   rule.
+Playwright does not cover this app — it drives browsers, not Expo Go.
