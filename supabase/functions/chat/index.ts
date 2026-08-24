@@ -117,6 +117,15 @@ ${digestSection}`;
 
   const system = `${coreRules.trim()}\n\n${personalityVoice.trim()}\n\n${clientFile}\n\nToday is ${today}.`;
 
+  // BRIEF-PHASE2.md acceptance test 4: grep the assembled prompt for stray
+  // fabricated numbers outside Verified stats. Returns the prompt as-is,
+  // no Anthropic call — same auth/RLS as a normal request, since this is
+  // entirely the caller's own data reflected back, nothing more exposed
+  // than a real reply already implies.
+  if (body?.debug === true) {
+    return new Response(JSON.stringify({ system }), { headers: { "Content-Type": "application/json" } });
+  }
+
   const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
   const response = await anthropic.messages.create({
     model: MODEL,
