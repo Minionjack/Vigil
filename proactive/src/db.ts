@@ -40,6 +40,43 @@ export function readLocalConfig(configPath: string = path.resolve(import.meta.di
   return JSON.parse(fs.readFileSync(configPath, "utf-8"));
 }
 
+// The unattended cron job has been observed hitting an intermittent
+// "JWT issued at future" error from Supabase roughly a third of ticks —
+// a static service_role key can't itself be issued "in the future"
+// relative to a stable clock, so this reads as a transient
+// clock-validation hiccup on the auth layer, not a code bug: every
+// manual retry of the exact same request has succeeded. Retrying a
+// bounded number of times with a short backoff means one flaky tick
+// doesn't silently drop a whole check/log — important now specifically
+// because BRIEF-PHASE2.md's test 1 needs 7 real days of the cron job
+// actually running.
+// isRetryable defaults to "always" — safe for reads. Writes pass a
+// narrower predicate (see recordSessionEvent) because retrying an
+// insert on an error that might mean "it actually went through, the
+// response just didn't come back" risks a duplicate event row; auth
+// rejections happen before the write is ever attempted server-side, so
+// they're always safe to retry regardless of which operation they wrap.
+async function withRetry<T>(fn: () => Promise<T>, isRetryable: (err: unknown) => boolean = () => true, attempts = 3, delayMs = 500): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < attempts - 1 && isRetryable(err)) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw lastError;
+}
+
+function isJwtClockSkewError(err: unknown): boolean {
+  return err instanceof Error && /JWT issued at future/i.test(err.message);
+}
+
 interface EventRow {
   occurred_at: string;
   kind: string;
@@ -71,6 +108,10 @@ export async function loadLiveState(
   supabase: SupabaseClient = getDefaultClient(),
   localConfig: LocalConfig = readLocalConfig()
 ): Promise<State> {
+  return withRetry(() => loadLiveStateOnce(userId, supabase, localConfig));
+}
+
+async function loadLiveStateOnce(userId: string, supabase: SupabaseClient, localConfig: LocalConfig): Promise<State> {
   const [{ data: profile, error: profileError }, { data: events, error: eventsError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", userId).single(),
     supabase
@@ -113,6 +154,14 @@ export async function loadLiveState(
  * acceptance test 2 checks for.
  */
 export async function recordSessionEvent(userId: string, session: Session, supabase: SupabaseClient = getDefaultClient()): Promise<void> {
+  // Narrower than loadLiveState's retry: only the known-safe auth-layer
+  // error is retried here, since retrying an insert on anything else
+  // (a genuine timeout, say) can't rule out the first attempt having
+  // already landed.
+  return withRetry(() => recordSessionEventOnce(userId, session, supabase), isJwtClockSkewError);
+}
+
+async function recordSessionEventOnce(userId: string, session: Session, supabase: SupabaseClient): Promise<void> {
   const payload = session.status === "completed" ? { type: session.type, note: session.note } : { type: session.type, excuse: session.excuse };
 
   const { error } = await supabase.from("events").insert({
