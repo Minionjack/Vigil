@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
+import { suggestNextSession, dateStringInTz, type Program, type ProgressionEvent } from "@vigil/core";
 import type { Session, State } from "./types.js";
 
 export function requireEnv(name: string): string {
@@ -32,7 +33,6 @@ function getDefaultClient(): SupabaseClient {
 }
 
 interface LocalConfig {
-  current_program: State["current_program"];
   journal_config: State["journal_config"];
 }
 
@@ -114,11 +114,17 @@ export async function loadLiveState(
 async function loadLiveStateOnce(userId: string, supabase: SupabaseClient, localConfig: LocalConfig): Promise<State> {
   const [{ data: profile, error: profileError }, { data: events, error: eventsError }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", userId).single(),
+    // Broadened beyond session_completed/skipped (Phase 2b's original
+    // query) to also fetch override and program_changed — the progression
+    // engine needs both, and the "current program" now comes from the
+    // latest program_changed event's payload rather than local-config.json,
+    // per the schema's own design comment ("current program is the
+    // payload of the most recent program_changed event").
     supabase
       .from("events")
       .select("occurred_at, kind, payload")
       .eq("user_id", userId)
-      .in("kind", ["session_completed", "session_skipped"])
+      .in("kind", ["session_completed", "session_skipped", "override", "program_changed"])
       .order("occurred_at", { ascending: false }),
   ]);
 
@@ -129,7 +135,19 @@ async function loadLiveStateOnce(userId: string, supabase: SupabaseClient, local
     throw new Error(`Failed to load events for user ${userId}: ${eventsError.message}`);
   }
 
-  const { current_program, journal_config } = localConfig;
+  const allEvents = events ?? [];
+  const { journal_config } = localConfig;
+
+  // allEvents is ordered occurred_at desc, so the first program_changed
+  // row found is the most recent one.
+  const programEvent = allEvents.find((e) => e.kind === "program_changed");
+  const program = programEvent ? (programEvent.payload as unknown as Program) : null;
+
+  const today = dateStringInTz(new Date(), profile.timezone);
+  const progressionEvents: ProgressionEvent[] = allEvents
+    .filter((e) => e.kind === "session_completed" || e.kind === "override")
+    .map((e) => ({ occurred_at: e.occurred_at, kind: e.kind, payload: e.payload }));
+  const suggestions = program ? suggestNextSession(program, progressionEvents, today) : undefined;
 
   return {
     client: {
@@ -140,9 +158,13 @@ async function loadLiveStateOnce(userId: string, supabase: SupabaseClient, local
       timezone: profile.timezone,
       personality: profile.personality,
     },
-    current_program,
-    sessions: eventsToSessions(events ?? []),
+    // Falls back to a minimal placeholder if no program_changed event
+    // exists yet (shouldn't happen post scripts/seed-program.ts, but a
+    // freshly-migrated project with no program seeded yet shouldn't crash).
+    current_program: program ? { name: program.name, next_session: (programEvent!.payload as { next_session: State["current_program"]["next_session"] }).next_session } : { name: "No program set", next_session: { type: "Unknown", planned: [] } },
+    sessions: eventsToSessions(allEvents),
     journal_config,
+    suggestions,
   };
 }
 

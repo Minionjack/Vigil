@@ -51,6 +51,15 @@ interface Message {
   timestamp: number;
 }
 
+// Phase 3's conversational logging: round-trips through the client
+// exactly like `messages` already does (the client already resends full
+// history every request) — no new persistence. If the app is killed
+// mid-confirmation the proposal is simply lost, an accepted v1 limit.
+interface PendingLogProposal {
+  type: string;
+  exercises: { exercise: string; weight_kg: number; reps: number; sets: number; rpe?: number }[];
+}
+
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
@@ -263,6 +272,132 @@ function PickerScreen({
   );
 }
 
+interface HistorySession {
+  date: string;
+  type: string;
+  status: "completed" | "skipped";
+  note?: string;
+  excuse?: string;
+  exercises?: { exercise: string; weight_kg: number; reps: number; sets: number; rpe?: number }[];
+}
+
+interface HistoryResponse {
+  sessions: HistorySession[];
+  trends: Record<string, { date: string; topSetWeight_kg: number }[]>;
+}
+
+// BRIEF-PHASE3.md's History screen: reverse-chron session list plus one
+// trend element (not a dashboard) — both computed server-side by the
+// history edge function; this component only renders what it's given.
+function HistoryScreen({ onDismiss, coachAccent }: { onDismiss: () => void; coachAccent: string }) {
+  const [data, setData] = useState<HistoryResponse | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const res = await fetch(`${SERVER_URL}/history`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        });
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        setData(await res.json());
+      } catch {
+        setLoadError(true);
+      }
+    })();
+  }, []);
+
+  // "One trend element only" per the brief — the exercise with the most
+  // logged data points is the one worth showing; ties break alphabetically
+  // for a stable, non-arbitrary choice.
+  const topTrend = data
+    ? Object.entries(data.trends).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))[0]
+    : undefined;
+  const trendWeights = topTrend ? topTrend[1].map((p) => p.topSetWeight_kg) : [];
+  const trendMin = Math.min(...trendWeights);
+  const trendMax = Math.max(...trendWeights);
+  const trendRange = trendMax - trendMin || 1;
+
+  return (
+    <LinearGradient colors={[colors.voidTop, colors.void]} style={styles.gradientRoot}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <View style={styles.pickerHeader}>
+          <TouchableOpacity onPress={onDismiss} hitSlop={12} style={styles.pickerDismissTouchable} accessibilityRole="button" accessibilityLabel="Back to chat">
+            <Text style={styles.pickerDismiss}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.pickerIntro}>
+          <Text style={styles.pickerTitle}>History</Text>
+          <Text style={styles.pickerSubtitle}>Every session, most recent first.</Text>
+        </View>
+
+        {loadError && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyBody}>Couldn't load history — check the connection and try again.</Text>
+          </View>
+        )}
+
+        {!loadError && !data && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyBody}>Loading…</Text>
+          </View>
+        )}
+
+        {data && (
+          <FlatList
+            data={data.sessions}
+            keyExtractor={(item, index) => `${item.date}-${item.type}-${index}`}
+            contentContainerStyle={styles.historyList}
+            ListHeaderComponent={
+              topTrend ? (
+                <View style={styles.trendCard}>
+                  <Text style={[styles.trendTitle, { color: coachAccent }]}>{topTrend[0].toUpperCase()}</Text>
+                  <View style={styles.trendRow}>
+                    {topTrend[1].map((point, i) => (
+                      <View key={i} style={styles.trendBarWrap}>
+                        <View style={[styles.trendBar, { height: 8 + 52 * ((point.topSetWeight_kg - trendMin) / trendRange), backgroundColor: coachAccent }]} />
+                        <Text style={styles.trendBarLabel}>{point.topSetWeight_kg}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null
+            }
+            renderItem={({ item }) => (
+              <View style={styles.historyRow}>
+                <View style={styles.historyRowHeader}>
+                  <Text style={styles.historyDate}>{item.date}</Text>
+                  <Text style={[styles.historyBadge, item.status === "skipped" ? styles.historyBadgeSkipped : { color: coachAccent }]}>
+                    {item.type} · {item.status === "skipped" ? "SKIPPED" : "DONE"}
+                  </Text>
+                </View>
+                {item.status === "skipped" ? (
+                  <Text style={styles.historyDetail}>{item.excuse ?? "no excuse given"}</Text>
+                ) : item.exercises && item.exercises.length > 0 ? (
+                  <Text style={styles.historyDetail}>
+                    {item.exercises.map((ex) => `${ex.exercise} ${ex.sets}x${ex.reps} @ ${ex.weight_kg}kg${ex.rpe ? ` (RPE ${ex.rpe})` : ""}`).join(", ")}
+                  </Text>
+                ) : (
+                  <Text style={styles.historyDetail}>{item.note || "—"}</Text>
+                )}
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyBody}>Nothing logged yet.</Text>
+              </View>
+            }
+          />
+        )}
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
 // No per-message avatar: this is a 1:1 conversation with exactly one
 // coach, not a group thread, so repeating its Orb on every line is the
 // convention this design deliberately breaks from (every mainstream
@@ -339,6 +474,8 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [personality, setPersonality] = useState<PersonalityId | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [screen, setScreen] = useState<"chat" | "history">("chat");
+  const [pendingLog, setPendingLog] = useState<PendingLogProposal | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const sendScale = useSharedValue(1);
   const sendAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: sendScale.value }] }));
@@ -424,12 +561,14 @@ export default function App() {
         body: JSON.stringify({
           messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
           personality: personality ?? "drill-sergeant",
+          pendingLog,
         }),
       });
 
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
       const data = await res.json();
 
+      setPendingLog(data.pendingLog ?? null);
       setMessages((prev) => [...prev, { id: makeId(), role: "assistant", content: data.reply, timestamp: Date.now() }]);
     } catch (err) {
       setMessages((prev) => [...prev, { id: makeId(), role: "assistant", content: FALLBACK_TEXT, status: "error", timestamp: Date.now() }]);
@@ -461,6 +600,10 @@ export default function App() {
   }
 
   const current = personalityById(personality ?? "drill-sergeant");
+
+  if (screen === "history") {
+    return <HistoryScreen onDismiss={() => setScreen("chat")} coachAccent={current.accent} />;
+  }
   const sendDisabled = isTyping || !input.trim();
 
   return (
@@ -477,15 +620,26 @@ export default function App() {
             <Orb size={44} color={current.accent} initials={current.initials} motion={current.motion} speaking={isTyping} />
             <Text style={styles.headerTitle}>{current.name}</Text>
           </View>
-          <TouchableOpacity
-            onPress={() => setShowPicker(true)}
-            hitSlop={12}
-            style={styles.headerActionTouchable}
-            accessibilityRole="button"
-            accessibilityLabel="Change coach"
-          >
-            <Text style={styles.headerAction}>Change coach</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => setScreen("history")}
+              hitSlop={12}
+              style={styles.headerActionTouchable}
+              accessibilityRole="button"
+              accessibilityLabel="View history"
+            >
+              <Text style={styles.headerAction}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowPicker(true)}
+              hitSlop={12}
+              style={styles.headerActionTouchable}
+              accessibilityRole="button"
+              accessibilityLabel="Change coach"
+            >
+              <Text style={styles.headerAction}>Change coach</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <AccentEdge color={current.accent} />
       </View>
@@ -574,6 +728,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.lg,
     fontFamily: fonts.display.bold,
     letterSpacing: 0.2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
   headerActionTouchable: {
     minHeight: touchTarget.min,
@@ -808,5 +967,75 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: 18,
     fontFamily: fonts.body.regular,
+  },
+  historyList: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  trendCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  trendTitle: {
+    fontFamily: fonts.mono.medium,
+    fontSize: fontSizes.xs,
+    letterSpacing: 1.2,
+    marginBottom: spacing.md,
+  },
+  trendRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing.sm,
+    minHeight: 76,
+  },
+  trendBarWrap: {
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  trendBar: {
+    width: 14,
+    borderRadius: radii.sm,
+  },
+  trendBarLabel: {
+    color: colors.textDim,
+    fontFamily: fonts.mono.regular,
+    fontSize: fontSizes.xs - 2,
+  },
+  historyRow: {
+    backgroundColor: colors.surface2,
+    borderRadius: radii.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.border,
+    padding: spacing.md,
+  },
+  historyRowHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  historyDate: {
+    color: colors.text,
+    fontFamily: fonts.body.medium,
+    fontSize: fontSizes.sm,
+  },
+  historyBadge: {
+    fontFamily: fonts.mono.medium,
+    fontSize: fontSizes.xs - 1,
+    letterSpacing: 0.6,
+  },
+  historyBadgeSkipped: {
+    color: colors.danger,
+  },
+  historyDetail: {
+    color: colors.textDim,
+    fontFamily: fonts.body.regular,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
   },
 });

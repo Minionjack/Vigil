@@ -12,9 +12,12 @@
 //      generating ../_shared/prompts.ts (scripts/generate-edge-prompts.ts)
 //      and importing it normally instead.
 //
-// Same contract as server/src/index.ts's /chat route: { messages, personality }
-// in, { reply } out. Personality/profile/digest assembly now reads from
-// Postgres instead of fake-profile.json / state.json.
+// Phase 3 added conversational logging: { messages, personality,
+// pendingLog? } in, { reply, pendingLog? } out. `pendingLog` round-trips
+// through the client exactly like `messages` already does (the client
+// already resends full history every request) — no new table, no new
+// persistence. If the app is killed mid-confirmation the proposal is
+// simply lost; an accepted v1 limit (BRIEF-PHASE3.md's own plan).
 
 import Anthropic from "npm:@anthropic-ai/sdk@0.110.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -26,13 +29,39 @@ import {
 } from "../_shared/core/stats.ts";
 import { resolvePersonality } from "../_shared/core/personality.ts";
 import { CORE_RULES, PERSONALITY_PROMPTS } from "../_shared/prompts.ts";
+import { suggestNextSession, renderSuggestedNextSession, type Program, type ProgressionEvent } from "../_shared/core/progression.ts";
+import { looksLikeSetLog, classifyConfirmation } from "../_shared/core/logging.ts";
 
 const MODEL = "claude-sonnet-4-6";
+const CONFIDENCE_THRESHOLD = 0.7;
 
 interface EventRow {
   occurred_at: string;
   kind: string;
   payload: Record<string, unknown>;
+}
+
+interface ExerciseLog {
+  exercise: string;
+  weight_kg: number;
+  reps: number;
+  sets: number;
+  rpe?: number;
+}
+
+interface PendingLogProposal {
+  type: string;
+  exercises: ExerciseLog[];
+}
+
+interface ExtractedExercise extends ExerciseLog {
+  confidence: { exercise: number; weight_kg: number; reps: number; sets?: number; rpe?: number };
+}
+
+interface ExtractionResult {
+  type: string;
+  type_confidence: number;
+  exercises: ExtractedExercise[];
 }
 
 function eventsToSessions(events: EventRow[]): CoreSession[] {
@@ -50,6 +79,91 @@ function latestWeight(events: EventRow[]): WeightEntry | null {
   const weighIns = events.filter((e) => e.kind === "weight_logged").sort((a, b) => (a.occurred_at < b.occurred_at ? 1 : -1));
   if (weighIns.length === 0) return null;
   return { date: weighIns[0].occurred_at.slice(0, 10), weight_kg: Number(weighIns[0].payload.weight_kg) };
+}
+
+const EXTRACTION_TOOL = {
+  name: "log_extraction",
+  description: "Structured extraction of a logged workout session from free text. Never guess a value that isn't actually stated — omit it and score its confidence low instead.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      type: { type: "string", description: "Session type this belongs to: Push, Pull, or Legs" },
+      type_confidence: { type: "number", description: "0-1, your genuine certainty in the session type" },
+      exercises: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            exercise: { type: "string" },
+            weight_kg: { type: "number" },
+            reps: { type: "number", description: "reps per set" },
+            sets: { type: "number" },
+            rpe: { type: "number", description: "omit if not stated" },
+            confidence: {
+              type: "object",
+              properties: {
+                exercise: { type: "number" },
+                weight_kg: { type: "number" },
+                reps: { type: "number" },
+                sets: { type: "number" },
+                rpe: { type: "number" },
+              },
+              required: ["exercise", "weight_kg", "reps"],
+            },
+          },
+          required: ["exercise", "weight_kg", "reps", "sets", "confidence"],
+        },
+      },
+    },
+    required: ["type", "type_confidence", "exercises"],
+  },
+};
+
+async function extractSetLog(anthropic: Anthropic, text: string, priorProposal?: PendingLogProposal): Promise<ExtractionResult> {
+  const correctionNote = priorProposal
+    ? ` The athlete is correcting a prior proposal (${JSON.stringify(priorProposal)}) — apply only the correction their message implies, keep everything else from the prior proposal, and score confidence based on what's actually stated in this message plus what's being carried over.`
+    : "";
+
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    system: `Extract structured set-logging data from the athlete's message using the log_extraction tool.${correctionNote} Confidence must reflect genuine certainty — a field that wasn't stated gets low confidence, not a default guess.`,
+    messages: [{ role: "user", content: text }],
+    tools: [EXTRACTION_TOOL],
+    tool_choice: { type: "tool", name: "log_extraction" },
+  });
+
+  const toolUse = response.content.find((b) => b.type === "tool_use");
+  return toolUse!.input as ExtractionResult;
+}
+
+/**
+ * The write gate, in code: a field only survives into a pendingLog if
+ * its confidence clears the threshold. Anything that doesn't produces a
+ * list of exactly what's unclear, for the coach to ask about — the
+ * ambiguity determination is code's, never the model's improvisation.
+ */
+function applyConfidenceGate(extraction: ExtractionResult): { pendingLog: PendingLogProposal | null; unclearFields: string[] } {
+  const unclear: string[] = [];
+  if (extraction.type_confidence < CONFIDENCE_THRESHOLD) {
+    unclear.push("which session this was (Push/Pull/Legs)");
+  }
+
+  const goodExercises: ExerciseLog[] = [];
+  for (const ex of extraction.exercises) {
+    const c = ex.confidence;
+    if (c.exercise < CONFIDENCE_THRESHOLD || c.weight_kg < CONFIDENCE_THRESHOLD || c.reps < CONFIDENCE_THRESHOLD) {
+      unclear.push(`${ex.exercise || "one of the exercises"} (weight and/or reps)`);
+      continue;
+    }
+    goodExercises.push({ exercise: ex.exercise, weight_kg: ex.weight_kg, reps: ex.reps, sets: ex.sets, rpe: ex.rpe });
+  }
+
+  if (unclear.length > 0 || goodExercises.length === 0) {
+    return { pendingLog: null, unclearFields: unclear.length > 0 ? unclear : ["the exercises in that message"] };
+  }
+
+  return { pendingLog: { type: extraction.type, exercises: goodExercises }, unclearFields: [] };
 }
 
 Deno.serve(async (req) => {
@@ -73,10 +187,13 @@ Deno.serve(async (req) => {
   const body = await req.json();
   const messages = body?.messages;
   const personality = resolvePersonality(body?.personality);
+  const pendingLog = body?.pendingLog as PendingLogProposal | undefined;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(JSON.stringify({ error: "Request body must include a non-empty `messages` array." }), { status: 400 });
   }
+
+  const lastUserMessage = [...messages].reverse().find((m: { role: string; content: string }) => m.role === "user")?.content ?? "";
 
   const [profileResult, { data: events }, { data: digests }] = await Promise.all([
     supabase.from("profiles").select("*").eq("user_id", user.id).single(),
@@ -90,8 +207,19 @@ Deno.serve(async (req) => {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const sessions = eventsToSessions(events ?? []);
-  const verifiedStats = renderVerifiedStats(computeSessionStats(sessions, today), latestWeight(events ?? []));
+  const allEvents = events ?? [];
+  const sessions = eventsToSessions(allEvents);
+  const verifiedStats = renderVerifiedStats(computeSessionStats(sessions, today), latestWeight(allEvents));
+
+  const programEvent = allEvents.find((e) => e.kind === "program_changed");
+  const program = programEvent ? (programEvent.payload as unknown as Program) : null;
+  const progressionEvents: ProgressionEvent[] = allEvents
+    .filter((e) => e.kind === "session_completed" || e.kind === "override")
+    .map((e) => ({ occurred_at: e.occurred_at, kind: e.kind as "session_completed" | "override", payload: e.payload }));
+  const suggestionsSection =
+    program && program.exercises.length > 0
+      ? `\n\n## Suggested next session (computed — cite these numbers, never adjust them; you may explain or disagree with the suggestion in voice, but not the number)\n${renderSuggestedNextSession(suggestNextSession(program, progressionEvents, today))}`
+      : "";
 
   const coreRules = CORE_RULES;
   const personalityVoice = PERSONALITY_PROMPTS[personality];
@@ -111,11 +239,11 @@ Training days: ${(profile.training_days as string[]).join(", ")}
 Usual session time: ${profile.usual_session_time}
 
 ## Verified stats (computed from events — the only numbers you may cite as a count, streak, "X of Y", or "days since" claim)
-${verifiedStats}
+${verifiedStats}${suggestionsSection}
 
 ${digestSection}`;
 
-  const system = `${coreRules.trim()}\n\n${personalityVoice.trim()}\n\n${clientFile}\n\nToday is ${today}.`;
+  const baseSystem = `${coreRules.trim()}\n\n${personalityVoice.trim()}\n\n${clientFile}\n\nToday is ${today}.`;
 
   // BRIEF-PHASE2.md acceptance test 4: grep the assembled prompt for stray
   // fabricated numbers outside Verified stats. Returns the prompt as-is,
@@ -123,14 +251,60 @@ ${digestSection}`;
   // entirely the caller's own data reflected back, nothing more exposed
   // than a real reply already implies.
   if (body?.debug === true) {
-    return new Response(JSON.stringify({ system }), { headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ system: baseSystem }), { headers: { "Content-Type": "application/json" } });
   }
 
   const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+
+  // Conversational logging (BRIEF-PHASE3.md). Two entry points: a reply
+  // to an existing pendingLog, or a fresh message that looks like a set
+  // log. Either way, nothing is written to `events` except through the
+  // explicit "confirm" branch below — extraction alone never writes.
+  let responsePendingLog: PendingLogProposal | undefined;
+  let systemNote = "";
+
+  if (pendingLog) {
+    const classification = classifyConfirmation(lastUserMessage);
+
+    if (classification === "confirm") {
+      const { error: insertError } = await supabase.from("events").insert({
+        user_id: user.id,
+        occurred_at: `${today}T12:00:00Z`,
+        kind: "session_completed",
+        payload: { type: pendingLog.type, exercises: pendingLog.exercises, source: "chat" },
+      });
+      if (insertError) {
+        return new Response(JSON.stringify({ error: `Failed to record session: ${insertError.message}` }), { status: 500 });
+      }
+      systemNote = `\n\nThe pending log proposal was just confirmed and written to the log: ${JSON.stringify(pendingLog)}. Acknowledge it briefly in voice — you don't need to repeat every number back, just confirm it's logged.`;
+    } else if (classification === "deny") {
+      systemNote = `\n\nThe athlete rejected the pending log proposal (${JSON.stringify(pendingLog)}) as incorrect. Nothing was written. Ask what's actually correct.`;
+    } else {
+      const extraction = await extractSetLog(anthropic, lastUserMessage, pendingLog);
+      const gate = applyConfidenceGate(extraction);
+      if (gate.pendingLog) {
+        responsePendingLog = gate.pendingLog;
+        systemNote = `\n\nYou have an updated log proposal after the athlete's correction: ${JSON.stringify(gate.pendingLog)}. Echo it back in voice and ask them to confirm. Do not alter these numbers.`;
+      } else {
+        responsePendingLog = pendingLog; // stay pending on the original proposal rather than dropping context
+        systemNote = `\n\nThe athlete's reply didn't clearly confirm, deny, or correct the pending proposal (${JSON.stringify(pendingLog)}). Ask specifically about: ${gate.unclearFields.join(", ")}. Do not assume or guess.`;
+      }
+    }
+  } else if (looksLikeSetLog(lastUserMessage)) {
+    const extraction = await extractSetLog(anthropic, lastUserMessage);
+    const gate = applyConfidenceGate(extraction);
+    if (gate.pendingLog) {
+      responsePendingLog = gate.pendingLog;
+      systemNote = `\n\nYou have a new log proposal to confirm: ${JSON.stringify(gate.pendingLog)}. Echo it back in your own voice (e.g. "Logging: bench 4x6 @ 82.5, RPE 8, under Push. Confirm?") and ask for confirmation. Do not alter these numbers.`;
+    } else {
+      systemNote = `\n\nThe athlete seems to be describing a session, but this is unclear: ${gate.unclearFields.join(", ")}. Ask specifically about those — do not assume or guess at numbers.`;
+    }
+  }
+
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 1024,
-    system,
+    system: baseSystem + systemNote,
     messages: messages.slice(-30).map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
   });
 
@@ -139,5 +313,5 @@ ${digestSection}`;
     .map((b) => b.text)
     .join("\n");
 
-  return new Response(JSON.stringify({ reply }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ reply, pendingLog: responsePendingLog }), { headers: { "Content-Type": "application/json" } });
 });

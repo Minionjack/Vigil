@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { computeNextScheduledSession, computeSessionStats, renderVerifiedStats, weekdayOfDateString } from "@vigil/core";
+import { computeNextScheduledSession, computeSessionStats, renderSuggestedNextSession, renderVerifiedStats, weekdayOfDateString } from "@vigil/core";
 import type { State } from "./types.js";
 
 // computeSessionStats, renderVerifiedStats, and computeNextScheduledSession
@@ -37,6 +37,13 @@ export function renderState(state: State, today: string): string {
   // alongside the computed date/weekday; do not try to reconcile the two here.
   const nextLine = `Next scheduled session: ${next.weekday} ${next.date} at ${c.usual_session_time} — ${prog.next_session.type} (per current_program.next_session)`;
 
+  // Phase 3's progression engine — absent for fixture-based rule testing
+  // (fixtures/r1-4.json predate it), present for the live path. Skipped
+  // entirely rather than guessed at when it isn't there.
+  const suggestedSection = state.suggestions && state.suggestions.length > 0
+    ? `\n\n## Suggested next session (computed — cite these numbers, never adjust them; you may explain or disagree with the suggestion in voice, but not the number)\n${renderSuggestedNextSession(state.suggestions)}`
+    : "";
+
   return `## Client file
 
 Name: ${c.name}
@@ -54,5 +61,5 @@ Recent sessions (most recent first):
 ${sessions || "(none logged)"}
 
 ## Verified stats (computed — the only numbers you may cite as a count, streak, or "X of Y" claim; do not derive or estimate beyond these)
-${verifiedStats}`;
+${verifiedStats}${suggestedSection}`;
 }

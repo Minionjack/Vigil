@@ -3,8 +3,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadLiveState, recordSessionEvent } from "./db.js";
 
 const localConfig = {
-  current_program: { name: "test program", next_session: { type: "Push", planned: ["Bench"] } },
   journal_config: { max_messages_per_day: 2, quiet_hours: { before: "06:30", after: "21:30" }, delivery: { method: "ntfy", topic: "t" } },
+};
+
+const PROGRAM_CHANGED_EVENT = {
+  occurred_at: "2026-07-15T12:00:00Z",
+  kind: "program_changed",
+  payload: {
+    name: "test program",
+    next_session: { type: "Push", planned: ["Bench"] },
+    exercises: [{ exercise: "Bench press", sessionType: "Push", targetReps: 6, targetSets: 4, category: "upper", seedWeight_kg: 80 }],
+  },
 };
 
 // A minimal fake matching just the chain shapes db.ts actually calls —
@@ -58,6 +67,7 @@ test("loadLiveState maps a profile row + event rows into the State shape rules.t
       { occurred_at: "2026-07-25T12:00:00Z", kind: "session_completed", payload: { type: "Legs", note: "felt strong" } },
       { occurred_at: "2026-07-01T12:00:00Z", kind: "session_skipped", payload: { type: "Legs", excuse: "too tired" } },
       { occurred_at: "2026-07-20T09:00:00Z", kind: "nudge_fired", payload: { rule: "R1" } }, // must be filtered out
+      PROGRAM_CHANGED_EVENT,
     ],
   });
 
@@ -75,8 +85,23 @@ test("loadLiveState maps a profile row + event rows into the State shape rules.t
     { date: "2026-07-25", type: "Legs", status: "completed", note: "felt strong", excuse: undefined },
     { date: "2026-07-01", type: "Legs", status: "skipped", note: undefined, excuse: "too tired" },
   ]);
-  expect(state.current_program).toEqual(localConfig.current_program);
+  // current_program now comes from the latest program_changed event, not
+  // local-config.json — this is what lets chat and proactive read the
+  // literal same program data.
+  expect(state.current_program).toEqual({ name: "test program", next_session: { type: "Push", planned: ["Bench"] } });
+  expect(state.suggestions).toBeDefined();
+  expect(state.suggestions?.[0].exercise).toBe("Bench press");
   expect(state.journal_config).toEqual(localConfig.journal_config);
+});
+
+test("loadLiveState falls back to a placeholder program rather than crashing when no program_changed event exists yet", async () => {
+  const { client } = fakeClient({
+    profile: { name: "Jack", goal: "g", training_days: [], usual_session_time: "18:30:00", timezone: "Asia/Dubai", personality: "mentor" },
+    events: [],
+  });
+  const state = await loadLiveState("user-1", client, localConfig);
+  expect(state.current_program.name).toBe("No program set");
+  expect(state.suggestions).toBeUndefined();
 });
 
 test("loadLiveState throws rather than silently proceeding when no profile row exists", async () => {

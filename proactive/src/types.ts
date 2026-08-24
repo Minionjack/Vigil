@@ -1,4 +1,4 @@
-import type { PersonalityId } from "@vigil/core";
+import type { PersonalityId, ExerciseSuggestion } from "@vigil/core";
 
 export type RuleId = "R1" | "R2" | "R3" | "R4";
 
@@ -33,6 +33,11 @@ export interface State {
     quiet_hours: { before: string; after: string };
     delivery: { method: string; topic: string };
   };
+  // Phase 3's progression engine's output — optional so every existing
+  // fixture (fixtures/r1-4.json) and hand-built State literal in tests
+  // stays valid without it. renderState() skips the suggested-next-
+  // session line entirely when this is absent rather than guessing.
+  suggestions?: ExerciseSuggestion[];
 }
 
 export interface FiredLogEntry {

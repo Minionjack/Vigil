@@ -1,9 +1,10 @@
 # Vendored copies, not the real source
 
-These five files are copies of the equivalent files in `packages/core/src/`
-— `dateTz.ts`, `stats.ts`, `personality.ts`, `digest.ts`, `generateDigest.ts`.
-This is a deliberate, documented exception to this repo's "no duplicate
-truth" rule (`CLAUDE.md`), not an oversight.
+These files are copies of the equivalent files in `packages/core/src/` —
+`dateTz.ts`, `stats.ts`, `personality.ts`, `digest.ts`, `generateDigest.ts`,
+and, since Phase 3, `progression.ts`, `trends.ts`, `logging.ts`. This is a
+deliberate, documented exception to this repo's "no duplicate truth" rule
+(`CLAUDE.md`), not an oversight.
 
 ## Why
 
@@ -34,10 +35,12 @@ Everything else — logic, comments, exported names — is copied verbatim.
 
 ## Keeping this in sync
 
-If `packages/core/src/{dateTz,stats,personality,digest,generateDigest}.ts`
-changes, the corresponding file here needs the same change manually
-re-applied (just the two mechanical rewrites above). There's no
-build step that does this automatically. If a change here ever needs to
-diverge in actual logic (not just the Deno-compat rewrites), that's a
-sign this vendoring approach has outgrown itself and the import-map
-alias is worth another, more careful attempt.
+If `packages/core/src/{dateTz,stats,personality,digest,generateDigest,
+progression,trends,logging}.ts` changes, the corresponding file here
+needs the same change manually re-applied (just the two mechanical
+rewrites above — `progression.ts`, `trends.ts`, and `logging.ts` only
+needed the import-extension rewrite, since none of them touch Node-only
+APIs). There's no build step that does this automatically. If a change
+here ever needs to diverge in actual logic (not just the Deno-compat
+rewrites), that's a sign this vendoring approach has outgrown itself and
+the import-map alias is worth another, more careful attempt.
