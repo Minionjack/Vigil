@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { findUnresolvedNudge } from "./outcome.js";
 import type { JournalEntry, RuleId } from "./types.js";
 
-const TZ = "Asia/Dubai"; // UTC+4 — matches state.json; chosen so tests fail if the code ever does naive local-Date math instead of using dateStringInTz.
+const TZ = "Asia/Dubai"; // UTC+4 — matches the real profile's timezone; chosen so tests fail if the code ever does naive local-Date math instead of using dateStringInTz.
 
 function fired(timestamp: string, rule: RuleId = "R1"): JournalEntry {
   return { kind: "fired", timestamp, rule, message_text: "test", delivered: true };

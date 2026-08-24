@@ -14,18 +14,21 @@ npm install
 1. **Pick a secret ntfy topic.** Anyone who knows the topic name can read or
    post to it — treat it like a password. A random slug is fine, e.g.
    `jack-vigil-9f2a`.
-2. Edit `state.json` → `journal_config.delivery.topic` to that value.
+2. Edit `local-config.json` → `journal_config.delivery.topic` to that value.
 3. Install the **ntfy** app on your iPhone (App Store), open it, tap
    subscribe (`+`), and enter the exact same topic name. Send a test:
    ```
    curl -d "test" https://ntfy.sh/jack-vigil-9f2a
    ```
    You should get a push notification within a few seconds.
-4. `state.json` is seeded from your real recent sessions but will drift —
-   correct it by hand, or keep it current with `npm run log` (below).
 
-`state.json` and `journal.jsonl` are gitignored: one holds a secret topic
-name, the other is your day-to-day behavior log. Neither belongs in git.
+Client info (name/goal/training days/timezone/personality) and session
+history now live in the real Supabase project — `profiles` and `events`,
+the same tables the chat screen reads — not a local file. `npm run log`
+writes there directly; there's nothing to hand-edit or keep in sync
+yourself. `local-config.json` holds only what has no Postgres equivalent
+(the current program's planned exercises, and this stub's own ntfy/quiet-
+hours config) and `journal.jsonl` is gitignored: neither belongs in git.
 
 ## Daily use
 
@@ -34,9 +37,11 @@ npm run log -- done pull "rows 5x5@72.5"
 npm run log -- skip legs "work dinner"
 ```
 
-Appends a dated entry to `state.json`. Takes ~10 seconds — if it starts
-feeling like a chore, the experiment is at risk; log honestly anyway,
-including skips.
+Records a session event in the real Supabase project — the same one the
+chat screen reads, so a session logged here is something SGT VIGIL can
+already cite in a chat reply a moment later. Takes ~10 seconds — if it
+starts feeling like a chore, the experiment is at risk; log honestly
+anyway, including skips.
 
 ## Previewing messages before going live
 
@@ -44,11 +49,13 @@ including skips.
 npm run check -- --dry-run
 ```
 
-Evaluates the rules against `state.json` right now and prints what SGT
-VIGIL would say, without delivering or journaling anything.
+Evaluates the rules against the live Supabase project right now and
+prints what SGT VIGIL would say, without delivering or journaling
+anything.
 
-To rehearse a specific scenario without touching your real state, point it
-at a fixture and a fabricated timestamp:
+To rehearse a specific scenario without touching your real data, point it
+at a fixture and a fabricated timestamp — this still reads a local file,
+never Supabase:
 
 ```
 npm run check -- --dry-run --now=2026-07-13T17:50:00+04:00 --state=fixtures/r1.json
@@ -111,12 +118,13 @@ To stop the experiment: `crontab -e` and delete the line.
 
 ## Files
 
-- `state.json` — current source of truth (gitignored; personal + has the ntfy topic)
+- `local-config.json` — the current program's planned exercises + this stub's own ntfy/quiet-hours config (gitignored; has the ntfy topic). Everything else client-facing (name, goal, sessions, personality) lives in Supabase, not here.
 - `journal.jsonl` — every message that actually fired, appended by `check.ts` (gitignored)
 - `fixtures/` — hand-built scenarios for dry-run rehearsal (safe to commit, no secrets)
+- `src/db.ts` — reads/writes the live Supabase project (`profiles`, `events`); `loadLiveState`/`recordSessionEvent`
 - `src/rules.ts` — pure rules engine (state, now, fired-history) → rule or null
 - `src/rules.test.ts` — unit tests per rule; run with `npm test`
 - `src/message.ts` — assembles the prompt and calls Claude for the one-line message
 - `src/deliver.ts` — ntfy POST + journal append
-- `src/check.ts` — cron entrypoint (`--dry-run`, `--now=`, `--state=`)
+- `src/check.ts` — cron entrypoint (`--dry-run`, `--now=`, `--state=` for fixtures)
 - `src/log.ts` — the `npm run log` command

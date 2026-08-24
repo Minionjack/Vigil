@@ -21,6 +21,7 @@ the-vigil/android/
 
 # Proactive stub — personal training data + ntfy secret topic
 proactive/state.json
+proactive/local-config.json
 proactive/journal.jsonl
 proactive/cron.log
 

@@ -3,7 +3,7 @@ import type { JournalEntry } from "./types.js";
 
 export async function deliverNtfy(topic: string, message: string): Promise<void> {
   if (!topic || topic === "REPLACE-WITH-SECRET-TOPIC") {
-    throw new Error("Set a real (hard-to-guess) ntfy topic in state.json under journal_config.delivery.topic first.");
+    throw new Error("Set a real (hard-to-guess) ntfy topic in local-config.json under journal_config.delivery.topic first.");
   }
 
   const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, {

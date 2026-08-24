@@ -1,8 +1,11 @@
 import path from "node:path";
+import dotenv from "dotenv";
 import { appendJournal, readJournal } from "./deliver.js";
 import { findUnresolvedNudge } from "./outcome.js";
 import { dateStringInTz } from "@vigil/core";
-import { loadState, saveState } from "./state.js";
+import { loadLiveState, recordSessionEvent, requireEnv } from "./db.js";
+
+dotenv.config({ path: path.resolve(import.meta.dirname, "..", "..", "server", ".env") });
 
 // Rejects shapes the regex alone would let through as a real date, like
 // 2026-02-30 — JS Date silently rolls that over to 2026-03-02 rather than
@@ -18,7 +21,7 @@ export function isValidCalendarDate(dateStr: string): boolean {
 //   npm run log -- done pull "rows 5x5@72.5"
 //   npm run log -- skip legs "work dinner"
 //   npm run log -- done push "shoulders" --date=2026-07-17   (backfill a past date)
-function main() {
+async function main() {
   const rawArgs = process.argv.slice(2);
   const dateArg = rawArgs.find((a) => a.startsWith("--date="));
   const [action, type, ...noteWords] = rawArgs.filter((a) => !a.startsWith("--date="));
@@ -39,21 +42,20 @@ function main() {
     return;
   }
 
-  const statePath = path.resolve(import.meta.dirname, "..", "state.json");
   const journalPath = path.resolve(import.meta.dirname, "..", "journal.jsonl");
-  const state = loadState(statePath);
+  const userId = requireEnv("PROACTIVE_USER_ID");
+  const state = await loadLiveState(userId);
   const now = new Date();
   const date = backfillDate ?? dateStringInTz(now, state.client.timezone);
 
   const capitalizedType = type[0].toUpperCase() + type.slice(1);
 
-  if (action === "done") {
-    state.sessions.unshift({ date, type: capitalizedType, status: "completed", note });
-  } else {
-    state.sessions.unshift({ date, type: capitalizedType, status: "skipped", excuse: note });
-  }
-
-  saveState(statePath, state);
+  await recordSessionEvent(
+    userId,
+    action === "done"
+      ? { date, type: capitalizedType, status: "completed", note }
+      : { date, type: capitalizedType, status: "skipped", excuse: note }
+  );
   console.log(`Logged: ${date} ${capitalizedType} — ${action}${note ? ` ("${note}")` : ""}`);
 
   if (backfillDate) {
@@ -85,5 +87,8 @@ function main() {
 // Guarded so this module can be imported for testing (isValidCalendarDate)
 // without executing the CLI as a side effect of the import.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
 }

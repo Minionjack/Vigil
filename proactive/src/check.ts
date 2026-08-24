@@ -5,6 +5,7 @@ import { generateMessage } from "./message.js";
 import { dateStringInTz } from "@vigil/core";
 import { computeAcknowledgment, evaluateRules } from "./rules.js";
 import { loadState } from "./state.js";
+import { loadLiveState, requireEnv } from "./db.js";
 import type { Acknowledgment, FiredEntry, FiredLogEntry, RuleFired, State } from "./types.js";
 
 // Reuse the API key from ../server/.env
@@ -82,10 +83,15 @@ export async function runCheck(
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const statePath = path.resolve(args.state ?? path.join(import.meta.dirname, "..", "state.json"));
   const journalPath = path.resolve(import.meta.dirname, "..", "journal.jsonl");
 
-  const state = loadState(statePath);
+  // A --state=fixtures/rN.json override still reads a local fixture file
+  // unchanged (this is what the Phase 1 rule-testing acceptance step
+  // exercises); the real cron run reads the live Supabase project so it
+  // sees whatever log.ts has actually recorded, not a stale local copy.
+  const state = args.state
+    ? loadState(path.resolve(args.state))
+    : await loadLiveState(requireEnv("PROACTIVE_USER_ID"));
   const now = args.now ? new Date(args.now) : new Date();
 
   const journal = readJournal(journalPath);
