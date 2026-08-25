@@ -73,11 +73,12 @@ export function computeSessionStats(sessions: CoreSession[], today: string): Rec
  */
 export function renderVerifiedStats(stats: Record<string, TypeStats>, latestWeight: WeightEntry | null = null): string {
   const sessionLines = Object.entries(stats).map(([type, s]) => {
+    const skipDates =
+      s.skipEntries.length > 0 ? ` (${s.skipEntries.map((e) => `${e.date} ("${e.excuse}")`).join(", ")})` : "";
     if (s.completed === 0 && s.skipped > 0) {
-      const dates = s.skipEntries.map((e) => `${e.date} ("${e.excuse}")`).join(", ");
-      return `- ${type}: 0 completed, ${s.skipped} skipped in logged history (${dates}). No ${type.toLowerCase()} performance data exists — never reference progress, plateaus, or numbers for this type; state plainly that none has been logged.`;
+      return `- ${type}: 0 completed, ${s.skipped} skipped in logged history${skipDates}. No ${type.toLowerCase()} performance data exists — never reference progress, plateaus, or numbers for this type; state plainly that none has been logged.`;
     }
-    const skipNote = s.skipped > 0 ? `${s.skipped} skipped` : "never skipped";
+    const skipNote = s.skipped > 0 ? `${s.skipped} skipped${skipDates}` : "never skipped";
     const since = s.daysSinceLastCompleted;
     const sinceNote = since === null ? "" : since === 0 ? ", last completed today" : `, last completed ${since} day${since === 1 ? "" : "s"} ago`;
     return `- ${type}: ${s.completed} completed, ${skipNote}${sinceNote}, in logged history.`;

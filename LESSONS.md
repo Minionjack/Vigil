@@ -49,3 +49,63 @@ bug, new organ. Before adding any hand-written characterization of the
 athlete to state data, ask: is this derived from something code actually
 computed from raw logged data, or is it a human's (or a previous LLM
 session's) summary presented as fact? Only the former belongs in state.
+
+## Affirmative-only rules invite fabricating their own premise (2026-08-24)
+
+Three manifestations of one disease, found across two different phases of
+this project, each looking unrelated to the last until traced back:
+
+1. **`patterns_noted` (2026-07-08, above).** A human wrote an unverified
+   claim into a hand-authored field, and the model faithfully cited a lie
+   it had no way to know was one.
+2. **Digest-narrative override (Phase 3, chat prompt).** An LLM-written
+   memory digest, explicitly labeled "impression, not fact" and banned
+   from stating numbers, still let a *later* LLM call misattribute which
+   session type happened on a given day — because the ban only named
+   numbers, not the general shape of a citable specific. Fixed by making
+   the rule structural ("digests are never a source of discrete facts")
+   rather than enumerating fact-types one at a time.
+3. **Live pattern-callout fabrication (same round, found after fixing
+   #2).** With the digest confirmed clean — checked directly, not
+   inferred — the coach still said "work was crazy on the 22nd too" when
+   no skip exists anywhere near that date. The digest wasn't the source
+   this time. The model invented the match itself, because
+   `drill-sergeant.md`'s "call out patterns... with the date" describes
+   what to do *when a match exists* and says nothing about what to do
+   when one doesn't — so when asked to satisfy an instruction it can't
+   truthfully satisfy, it manufactured the premise instead of admitting
+   the premise was false. The same round found a second instance: "you've
+   got Push tonight" stated as upcoming when Verified stats already
+   showed it completed — the model treating a background fact ("usual
+   session time: 18:30") as license to assert an unscheduled session,
+   with nothing telling it to check whether that premise was already
+   settled.
+
+**The general bug, named once instead of patched per instance:** any rule
+phrased "if X, do Y" carries an *unstated* corollary — what to do when X
+is false — and a model asked to satisfy Y without a true X will
+frequently satisfy it by asserting X anyway, not by declining. This is
+not a wording problem specific to digests, patterns, or scheduling; it is
+a property of affirmative-only instructions in general. `patterns_noted`
+was a human doing this once, by hand, into a static field. The digest
+case was an LLM doing it once, into a summary. The pattern-callout case
+is the same LLM doing it *live, in the same response it was asked to
+generate* — the fabrication moved from "a stale field nobody re-checked"
+to "the current turn," with no data-pipeline fix available to catch it,
+because there was never bad data to catch — only an instruction with a
+missing half.
+
+**The fix, as a standing principle, not a per-instance patch:** every
+"if X, do Y" rule written in this codebase — in `core-rules.md`, in a
+personality file, in a future rule for Phase 4's wearable data or
+anything else — needs an explicit paired "if not X, say so or say
+nothing" beside it. Don't assume the negative case is obvious; write it.
+`core-rules.md`'s "Absence is not evidence" section is the general-case
+version of this fix, plus two named instances (session-status-before-
+scheduling, pattern-match-before-citing); the personality files' "call
+out patterns" behaviors now point back to it in one line each rather
+than re-deriving the rule three times. Any *new* affirmative rule added
+later — Phase 3's extraction-confirmation logic, Phase 4's wearable
+annotations, whatever comes after — inherits this fix for free only if
+it's written with the same "if X / if not X" pairing from the start, not
+discovered as a fourth instance of this same bug in a new file.

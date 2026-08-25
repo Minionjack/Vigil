@@ -31,6 +31,7 @@ import { resolvePersonality } from "../_shared/core/personality.ts";
 import { CORE_RULES, PERSONALITY_PROMPTS } from "../_shared/prompts.ts";
 import { suggestNextSession, renderSuggestedNextSession, type Program, type ProgressionEvent } from "../_shared/core/progression.ts";
 import { looksLikeSetLog, classifyConfirmation } from "../_shared/core/logging.ts";
+import { computeNextScheduledSession } from "../_shared/core/nextSession.ts";
 
 const MODEL = "claude-sonnet-4-6";
 const CONFIDENCE_THRESHOLD = 0.7;
@@ -213,6 +214,12 @@ Deno.serve(async (req) => {
 
   const programEvent = allEvents.find((e) => e.kind === "program_changed");
   const program = programEvent ? (programEvent.payload as unknown as Program) : null;
+  // next_session isn't part of the Program type (progression.ts only
+  // needs name/exercises) but the same program_changed payload carries it
+  // — this is the one piece proactive's renderState already rendered and
+  // chat never did, the exact gap that let a future weekday get inferred
+  // instead of computed (found by the casual-chat test, fixed here).
+  const programNextSession = programEvent ? (programEvent.payload as { next_session?: { type: string } }).next_session : undefined;
   const progressionEvents: ProgressionEvent[] = allEvents
     .filter((e) => e.kind === "session_completed" || e.kind === "override")
     .map((e) => ({ occurred_at: e.occurred_at, kind: e.kind as "session_completed" | "override", payload: e.payload }));
@@ -221,12 +228,20 @@ Deno.serve(async (req) => {
       ? `\n\n## Suggested next session (computed — cite these numbers, never adjust them; you may explain or disagree with the suggestion in voice, but not the number)\n${renderSuggestedNextSession(suggestNextSession(program, progressionEvents, today))}`
       : "";
 
+  // Same computeNextScheduledSession @vigil/core already gives proactive
+  // — only rendered here now, per the same rule core-rules.md already
+  // states: never state a future weekday unless it's in a rendered line.
+  const nextScheduled = computeNextScheduledSession(profile.training_days as string[], sessions.map((s) => s.date), today);
+  const nextScheduledLine = programNextSession
+    ? `Next scheduled session: ${nextScheduled.weekday} ${nextScheduled.date} at ${profile.usual_session_time} — ${programNextSession.type} (per current_program.next_session)\n`
+    : "";
+
   const coreRules = CORE_RULES;
   const personalityVoice = PERSONALITY_PROMPTS[personality];
 
   const digestSection =
     digests && digests.length > 0
-      ? `## Coach's impressions (LLM-written summaries — cite themes, never numbers; all numbers come from Verified stats above)\n${digests
+      ? `## Coach's impressions (LLM-written summaries — qualitative texture only. If anything here conflicts with Verified stats above on ANY fact, including which session type happened when, Verified stats wins outright and this is not mentioned.)\n${digests
           .map((d) => `- ${d.period_start} to ${d.period_end}: ${d.digest}`)
           .join("\n")}`
       : "";
@@ -237,7 +252,7 @@ Name: ${profile.name}
 Goal: ${profile.goal}
 Training days: ${(profile.training_days as string[]).join(", ")}
 Usual session time: ${profile.usual_session_time}
-
+${nextScheduledLine}
 ## Verified stats (computed from events — the only numbers you may cite as a count, streak, "X of Y", or "days since" claim)
 ${verifiedStats}${suggestionsSection}
 

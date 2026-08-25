@@ -59,6 +59,19 @@ test("renderVerifiedStats states days-since-last-completed as a rendered fact", 
   expect(rendered).toMatch(/Pull: 1 completed, never skipped, last completed 14 days ago, in logged history\./);
 });
 
+test("renderVerifiedStats includes the skip date and excuse inline for a type that also has completions", () => {
+  const stats = computeSessionStats(
+    [
+      { date: "2026-08-10", type: "Push", status: "completed" },
+      { date: "2026-07-27", type: "Push", status: "skipped", excuse: "work is crazy" },
+    ],
+    "2026-08-24"
+  );
+
+  const rendered = renderVerifiedStats(stats);
+  expect(rendered).toMatch(/Push: 1 completed, 1 skipped \(2026-07-27 \("work is crazy"\)\), last completed 14 days ago, in logged history\./);
+});
+
 test("renderVerifiedStats: weight defaults to 'none logged yet' when omitted", () => {
   const rendered = renderVerifiedStats(computeSessionStats([], "2026-07-20"));
   expect(rendered).toMatch(/Weight: none logged yet/);
