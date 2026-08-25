@@ -23,6 +23,18 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "64cfc98e-7814-4dc0-8b6a-cbaf40e13788"
+      }
+    },
+    "owner": "theworldfromjack",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/64cfc98e-7814-4dc0-8b6a-cbaf40e13788"
+    }
   }
 }
