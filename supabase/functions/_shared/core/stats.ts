@@ -73,12 +73,11 @@ export function computeSessionStats(sessions: CoreSession[], today: string): Rec
  */
 export function renderVerifiedStats(stats: Record<string, TypeStats>, latestWeight: WeightEntry | null = null): string {
   const sessionLines = Object.entries(stats).map(([type, s]) => {
-    const skipDates =
-      s.skipEntries.length > 0 ? ` (${s.skipEntries.map((e) => `${e.date} ("${e.excuse}")`).join(", ")})` : "";
     if (s.completed === 0 && s.skipped > 0) {
-      return `- ${type}: 0 completed, ${s.skipped} skipped in logged history${skipDates}. No ${type.toLowerCase()} performance data exists — never reference progress, plateaus, or numbers for this type; state plainly that none has been logged.`;
+      const dates = s.skipEntries.map((e) => `${e.date} ("${e.excuse}")`).join(", ");
+      return `- ${type}: 0 completed, ${s.skipped} skipped in logged history (${dates}). No ${type.toLowerCase()} performance data exists — never reference progress, plateaus, or numbers for this type; state plainly that none has been logged.`;
     }
-    const skipNote = s.skipped > 0 ? `${s.skipped} skipped${skipDates}` : "never skipped";
+    const skipNote = s.skipped > 0 ? `${s.skipped} skipped` : "never skipped";
     const since = s.daysSinceLastCompleted;
     const sinceNote = since === null ? "" : since === 0 ? ", last completed today" : `, last completed ${since} day${since === 1 ? "" : "s"} ago`;
     return `- ${type}: ${s.completed} completed, ${skipNote}${sinceNote}, in logged history.`;
@@ -90,4 +89,55 @@ export function renderVerifiedStats(stats: Record<string, TypeStats>, latestWeig
       : `- Weight: last logged ${latestWeight.weight_kg}kg on ${latestWeight.date}. This is a point-in-time number, not a trend — never state a rate, a change, or a projection from it.`;
 
   return [...sessionLines, weightLine].join("\n");
+}
+
+/**
+ * The literal skip history for one session type — date and verbatim
+ * excuse, no similarity scoring. This is the only data a "this has
+ * happened before" claim may cite from (see core-rules.md's Absence
+ * section): matching an excuse to a type, deciding something is "the
+ * third time," and treating distinct excuses as one recurring phrase are
+ * derivation (fuzzy matching, counting, comparison) — the same class of
+ * task computeSessionStats/computeNextScheduledSession already took out
+ * of the model's hands. Code returns the exact list; it never summarizes,
+ * dedupes, or flags similarity — that stays out of scope on purpose.
+ */
+export function findMatchingSkips(sessions: CoreSession[], type: string): { date: string; excuse: string }[] {
+  return sessions
+    .filter((s) => s.type === type && s.status === "skipped")
+    .map((s) => ({ date: s.date, excuse: s.excuse ?? "no excuse given" }));
+}
+
+const SESSION_TYPES = ["Push", "Pull", "Legs"];
+
+/**
+ * Which session type an excuse/message is actually about — never left for
+ * the model to guess from "whichever type has the most skips." A type is
+ * relevant only if the athlete named it, or a rendered fact says it's due
+ * today. Neither present means neither is stated: return undefined and let
+ * the prompt say so explicitly rather than attributing a message to any
+ * type at all.
+ */
+export function determineRelevantSessionType(message: string, dueTodayType: string | undefined): string | undefined {
+  const named = SESSION_TYPES.find((t) => new RegExp(`\\b${t}\\b`, "i").test(message));
+  return named ?? dueTodayType;
+}
+
+/**
+ * Whether today's excuse text is literally identical to a prior skip's
+ * excuse — exact string equality (trim + case-fold only), not similarity.
+ * "Same excuse" / "word for word" is not a judgment call: it's `===`, and
+ * an LLM asked to eyeball two semantically-adjacent strings ("work is
+ * crazy" vs "12 hour workday") will confidently call them the same when
+ * they aren't. Compute the boolean, render it as a fact, and the model
+ * never gets to guess at it.
+ */
+export function findExactSkipMatch(
+  entries: { date: string; excuse: string }[],
+  currentText: string | null
+): { date: string; excuse: string } | null {
+  if (!currentText) return null;
+  const normalize = (s: string) => s.trim().toLowerCase();
+  const target = normalize(currentText);
+  return entries.find((e) => normalize(e.excuse) === target) ?? null;
 }

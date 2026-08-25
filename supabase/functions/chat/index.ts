@@ -24,6 +24,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   computeSessionStats,
   renderVerifiedStats,
+  findMatchingSkips,
+  determineRelevantSessionType,
+  findExactSkipMatch,
   type CoreSession,
   type WeightEntry,
 } from "../_shared/core/stats.ts";
@@ -232,9 +235,37 @@ Deno.serve(async (req) => {
   // — only rendered here now, per the same rule core-rules.md already
   // states: never state a future weekday unless it's in a rendered line.
   const nextScheduled = computeNextScheduledSession(profile.training_days as string[], sessions.map((s) => s.date), today);
-  const nextScheduledLine = programNextSession
-    ? `Next scheduled session: ${nextScheduled.weekday} ${nextScheduled.date} at ${profile.usual_session_time} — ${programNextSession.type} (per current_program.next_session)\n`
-    : "";
+  const sessionDueToday = nextScheduled.date === today;
+  const dueTodayType = sessionDueToday ? programNextSession?.type : undefined;
+  const todayStatusLine = sessionDueToday
+    ? `A session is due today${dueTodayType ? `: ${dueTodayType}` : ""}.\n`
+    : "No session is scheduled today.\n";
+  const nextScheduledLine =
+    !sessionDueToday && programNextSession
+      ? `Next scheduled session: ${nextScheduled.weekday} ${nextScheduled.date} at ${profile.usual_session_time} — ${programNextSession.type} (per current_program.next_session)\n`
+      : "";
+
+  // Round 6: which type an excuse is about is never left for the model to
+  // infer from "whichever type has the most skips" — see LESSONS.md and
+  // core-rules.md's Absence section. Only a rendered "Prior skips" block
+  // for the relevant type may be cited as "this happened before."
+  const relevantType = determineRelevantSessionType(lastUserMessage, dueTodayType);
+  const priorSkipsSection = relevantType
+    ? (() => {
+        const matches = findMatchingSkips(sessions, relevantType);
+        if (matches.length === 0) {
+          return `\n\n## Prior ${relevantType} skips on record\nNo prior ${relevantType} skips on record. Do not imply a pattern that isn't here.`;
+        }
+        // Round 7: "same excuse"/"word for word" is exact string equality,
+        // not a judgment call — computed here so the model never has to
+        // eyeball whether two semantically-adjacent excuses are identical.
+        const exactMatch = findExactSkipMatch(matches, lastUserMessage.trim());
+        const matchLine = exactMatch
+          ? `Today's excuse text is identical to the skip logged on ${exactMatch.date}.`
+          : `Today's excuse text does NOT match any prior ${relevantType} skip verbatim.`;
+        return `\n\n## Prior ${relevantType} skips on record (the only skip history you may cite as "this happened before" — verbatim, this type only)\n${matches.map((m) => `- ${m.date} — "${m.excuse}"`).join("\n")}\n${matchLine}`;
+      })()
+    : `\n\n## Session type check\nNo session type is identifiable from today's message — do not guess or attribute one.`;
 
   const coreRules = CORE_RULES;
   const personalityVoice = PERSONALITY_PROMPTS[personality];
@@ -252,9 +283,9 @@ Name: ${profile.name}
 Goal: ${profile.goal}
 Training days: ${(profile.training_days as string[]).join(", ")}
 Usual session time: ${profile.usual_session_time}
-${nextScheduledLine}
+${todayStatusLine}${nextScheduledLine}
 ## Verified stats (computed from events — the only numbers you may cite as a count, streak, "X of Y", or "days since" claim)
-${verifiedStats}${suggestionsSection}
+${verifiedStats}${suggestionsSection}${priorSkipsSection}
 
 ${digestSection}`;
 
