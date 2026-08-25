@@ -54,13 +54,16 @@ one place: packages/core. The server, the proactive engine, the Expo
 client, and any scripts import it — none of them re-derive it.
 
 ### Before any change is "done"
-`npm test && npm run typecheck` in every affected package, then review
-the diff. `typecheck` (`tsc --noEmit`) exists in every package as of the
-architecture-hardening audit. `lint` does not yet — no ESLint config
-exists anywhere in the repo despite it being on the recommended VS Code
-extensions list, so it's deliberately left out of this line rather than
-asserted as if it already ran. Add it back here the day a real config
-lands, not before.
+`npm test && npm run typecheck && npm run lint` in every affected package,
+then review the diff. `typecheck` (`tsc --noEmit`) exists in every package
+as of the architecture-hardening audit. A real ESLint config exists too
+(`eslint.config.js` at the repo root, `typescript-eslint` recommended
+rules) — scoped to `packages/core`, `server`, `proactive`, `scripts`;
+`the-vigil` carries its own separate config and install rather than
+sharing the root one (not an npm workspace member). `lint` scripts exist
+in every package's `package.json`. Nothing runs any of this automatically
+— there's no CI in this repo — so it's a convention to remember, not a
+gate that stops a bad commit; run it yourself, every time.
 No green, no done.
 
 ## the-vigil verification (Expo Go, real device — not Playwright/browser)

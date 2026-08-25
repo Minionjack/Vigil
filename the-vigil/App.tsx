@@ -571,6 +571,7 @@ export default function App() {
       setPendingLog(data.pendingLog ?? null);
       setMessages((prev) => [...prev, { id: makeId(), role: "assistant", content: data.reply, timestamp: Date.now() }]);
     } catch (err) {
+      console.error("Chat request failed:", err);
       setMessages((prev) => [...prev, { id: makeId(), role: "assistant", content: FALLBACK_TEXT, status: "error", timestamp: Date.now() }]);
     } finally {
       setIsTyping(false);
