@@ -109,3 +109,50 @@ later — Phase 3's extraction-confirmation logic, Phase 4's wearable
 annotations, whatever comes after — inherits this fix for free only if
 it's written with the same "if X / if not X" pairing from the start, not
 discovered as a fourth instance of this same bug in a new file.
+
+## A fluent sentence can be arithmetic wearing English (2026-08-25)
+
+Fixing the pattern-callout bug above (round 5's fourth manifestation) took
+two more rounds after the fix "worked" once, and each of those rounds
+found the same deeper thing in a sharper form:
+
+- **Round 6.** Giving the model real skip data (date + excuse) fixed the
+  literal-fabrication case, but the model then attributed an excuse to
+  "whichever session type has the most skips" — nothing in the message or
+  the file said which type was meant — and flattened three genuinely
+  different excuses into one claimed recurring phrase ("the third
+  time... word for word"). Fixed by computing the relevant type in code
+  (`determineRelevantSessionType`: named in the message, or due today,
+  never inferred from skip counts) and gating skip history to that type
+  only (`findMatchingSkips`).
+- **Round 7.** Even given the *correct* verbatim data for the *correct*
+  type, the model still claimed two excuses were "the same" or "word for
+  word" when they weren't ("work is crazy" vs "12 hour workday") — wrong
+  in 4 of 5 live samples. This one wasn't fuzzy at all: it's `===`, a
+  boolean a single string comparison answers with total certainty. Fixed
+  by computing the equality in code (`findExactSkipMatch`) and rendering
+  the answer as a fact the model is told, not asked to judge.
+
+**The general shape, sharper than the affirmative-only-rule lesson above:**
+a model asked to state something that *sounds* like phrasing is often
+actually being asked to perform a computation — counting, comparing,
+matching, deriving — and fluent English hides the difference completely.
+"Which type does this excuse belong to," "is this the third time," and
+"are these two excuses the same" all read as ordinary sentences a coach
+would say. All three are arithmetic, pattern-matching, or string equality
+wearing a sentence. An LLM will answer all three fluently and confidently,
+and get them wrong at a real, measured rate (this session: 4-of-5 and,
+earlier in the same saga, other non-zero rates), because a language
+model's instinct — treat semantically adjacent things as equivalent — is
+exactly correct for conversation and exactly wrong for a factual identity
+claim.
+
+**The tell, going forward:** if a rule asks the model to state a specific,
+checkable claim — a date, a count, a "which one," an "is this the same as
+that" — stop and ask "is this actually a computation" before asking "is
+the prompt worded well enough." If the answer is yes, it belongs in
+`packages/core`, computed once, rendered as a fact, same as
+`computeSessionStats`/`computeNextScheduledSession`/`findMatchingSkips`/
+`findExactSkipMatch` already are. The prompt's job is to forbid the model
+from re-deriving what's already been computed, not to word the derivation
+well enough that the model gets it right on its own.
