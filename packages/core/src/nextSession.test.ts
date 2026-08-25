@@ -28,3 +28,12 @@ test("today is a training day already logged -> skips to the next one", () => {
   const next = computeNextScheduledSession(TRAINING_DAYS, ["2026-07-06"], today);
   expect(next).toEqual({ date: "2026-07-08", weekday: "Wednesday" });
 });
+
+test("a single training day, already logged today, wraps to next week rather than throwing", () => {
+  // Found live: a profile with only one training day whose sole weekly
+  // occurrence is already logged has nothing to find within a 6-day
+  // lookahead — the loop must reach offset 7 (next week's same weekday).
+  const today = dateStringInTz(new Date("2026-07-07T10:00:00Z"), "Asia/Dubai"); // Tuesday, already logged
+  const next = computeNextScheduledSession(["Tuesday"], ["2026-07-07"], today);
+  expect(next).toEqual({ date: "2026-07-14", weekday: "Tuesday" });
+});

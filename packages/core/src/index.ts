@@ -13,5 +13,5 @@ export { suggestNextSession, renderSuggestedNextSession } from "./progression.js
 export type { Program, ProgramExercise, ProgressionEvent, ExerciseSuggestion, SuggestionAction } from "./progression.js";
 export { computeLiftTrends } from "./trends.js";
 export type { TrendEvent, LiftTrendPoint } from "./trends.js";
-export { looksLikeSetLog, classifyConfirmation } from "./logging.js";
-export type { ConfirmationClassification } from "./logging.js";
+export { looksLikeSetLog, classifyConfirmation, applyCorrectionPatch, CONFIDENCE_THRESHOLD } from "./logging.js";
+export type { ConfirmationClassification, ExerciseLog, PendingLogProposal, CorrectionPatch } from "./logging.js";

@@ -33,29 +33,23 @@ import {
 import { resolvePersonality } from "../_shared/core/personality.ts";
 import { CORE_RULES, PERSONALITY_PROMPTS } from "../_shared/prompts.ts";
 import { suggestNextSession, renderSuggestedNextSession, type Program, type ProgressionEvent } from "../_shared/core/progression.ts";
-import { looksLikeSetLog, classifyConfirmation } from "../_shared/core/logging.ts";
+import {
+  looksLikeSetLog,
+  classifyConfirmation,
+  applyCorrectionPatch,
+  CONFIDENCE_THRESHOLD,
+  type ExerciseLog,
+  type PendingLogProposal,
+  type CorrectionPatch,
+} from "../_shared/core/logging.ts";
 import { computeNextScheduledSession } from "../_shared/core/nextSession.ts";
 
 const MODEL = "claude-sonnet-4-6";
-const CONFIDENCE_THRESHOLD = 0.7;
 
 interface EventRow {
   occurred_at: string;
   kind: string;
   payload: Record<string, unknown>;
-}
-
-interface ExerciseLog {
-  exercise: string;
-  weight_kg: number;
-  reps: number;
-  sets: number;
-  rpe?: number;
-}
-
-interface PendingLogProposal {
-  type: string;
-  exercises: ExerciseLog[];
 }
 
 interface ExtractedExercise extends ExerciseLog {
@@ -123,15 +117,11 @@ const EXTRACTION_TOOL = {
   },
 };
 
-async function extractSetLog(anthropic: Anthropic, text: string, priorProposal?: PendingLogProposal): Promise<ExtractionResult> {
-  const correctionNote = priorProposal
-    ? ` The athlete is correcting a prior proposal (${JSON.stringify(priorProposal)}) — apply only the correction their message implies, keep everything else from the prior proposal, and score confidence based on what's actually stated in this message plus what's being carried over.`
-    : "";
-
+async function extractSetLog(anthropic: Anthropic, text: string): Promise<ExtractionResult> {
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 500,
-    system: `Extract structured set-logging data from the athlete's message using the log_extraction tool.${correctionNote} Confidence must reflect genuine certainty — a field that wasn't stated gets low confidence, not a default guess.`,
+    system: `Extract structured set-logging data from the athlete's message using the log_extraction tool. Confidence must reflect genuine certainty — a field that wasn't stated gets low confidence, not a default guess.`,
     messages: [{ role: "user", content: text }],
     tools: [EXTRACTION_TOOL],
     tool_choice: { type: "tool", name: "log_extraction" },
@@ -139,6 +129,59 @@ async function extractSetLog(anthropic: Anthropic, text: string, priorProposal?:
 
   const toolUse = response.content.find((b) => b.type === "tool_use");
   return toolUse!.input as ExtractionResult;
+}
+
+const CORRECTION_TOOL = {
+  name: "log_correction",
+  description:
+    "Identify ONLY what the athlete's correction message changes about a pending log proposal. Omit every field the message doesn't actually address — do not restate the full proposal, and never guess at a field just because it existed before. If the proposal has more than one exercise, include `exercise` naming which one this correction targets whenever that's not already obvious from context.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      type: { type: "string", description: "omit unless the session type itself is being corrected" },
+      type_confidence: { type: "number", description: "0-1; required only if `type` is present" },
+      exercise: {
+        type: "string",
+        description: "omit unless the exercise name is being corrected, or needed to say which exercise (when there's more than one) this correction targets",
+      },
+      weight_kg: { type: "number", description: "omit unless the weight is being corrected" },
+      reps: { type: "number", description: "omit unless the reps are being corrected" },
+      sets: { type: "number", description: "omit unless the set count is being corrected" },
+      rpe: { type: "number", description: "omit unless the RPE is being corrected" },
+      confidence: {
+        type: "object",
+        description: "confidence per field ACTUALLY PRESENT above — omit entries for fields you didn't include",
+        properties: {
+          exercise: { type: "number" },
+          weight_kg: { type: "number" },
+          reps: { type: "number" },
+        },
+      },
+    },
+    required: [],
+  },
+};
+
+/**
+ * The correction call, scoped to change-detection only — merging the
+ * result into the existing pendingLog is applyCorrectionPatch's job, in
+ * code (see _shared/core/logging.ts for why: the old version of this
+ * function asked the model to reconstruct the whole proposal from a
+ * "keep everything else" instruction, and it silently dropped fields
+ * nobody re-stated).
+ */
+async function extractCorrection(anthropic: Anthropic, text: string, pendingLog: PendingLogProposal): Promise<CorrectionPatch> {
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 300,
+    system: `The athlete is correcting a pending log proposal (${JSON.stringify(pendingLog)}). Using the log_correction tool, identify ONLY what their message changes — omit every field it doesn't address.`,
+    messages: [{ role: "user", content: text }],
+    tools: [CORRECTION_TOOL],
+    tool_choice: { type: "tool", name: "log_correction" },
+  });
+
+  const toolUse = response.content.find((b) => b.type === "tool_use");
+  return toolUse!.input as CorrectionPatch;
 }
 
 /**
@@ -168,6 +211,28 @@ function applyConfidenceGate(extraction: ExtractionResult): { pendingLog: Pendin
   }
 
   return { pendingLog: { type: extraction.type, exercises: goodExercises }, unclearFields: [] };
+}
+
+/**
+ * Idempotency check for the confirm branch, in code — field-by-field, no
+ * library. Fixes the Phase 3 audit's other finding: resending an
+ * already-confirmed pendingLog fell through toward a second insert and
+ * 500'd. Whatever the exact cause, a duplicate confirm should never reach
+ * the insert path at all.
+ */
+function payloadsMatch(a: PendingLogProposal, b: { type: string; exercises: ExerciseLog[] }): boolean {
+  if (a.type !== b.type) return false;
+  if (a.exercises.length !== b.exercises.length) return false;
+  return a.exercises.every((ex, i) => {
+    const other = b.exercises[i];
+    return (
+      ex.exercise === other.exercise &&
+      ex.weight_kg === other.weight_kg &&
+      ex.reps === other.reps &&
+      ex.sets === other.sets &&
+      (ex.rpe ?? null) === (other.rpe ?? null)
+    );
+  });
 }
 
 Deno.serve(async (req) => {
@@ -313,27 +378,42 @@ ${digestSection}`;
     const classification = classifyConfirmation(lastUserMessage);
 
     if (classification === "confirm") {
-      const { error: insertError } = await supabase.from("events").insert({
-        user_id: user.id,
-        occurred_at: `${today}T12:00:00Z`,
-        kind: "session_completed",
-        payload: { type: pendingLog.type, exercises: pendingLog.exercises, source: "chat" },
-      });
-      if (insertError) {
-        return new Response(JSON.stringify({ error: `Failed to record session: ${insertError.message}` }), { status: 500 });
+      const { data: todaysSessions } = await supabase
+        .from("events")
+        .select("payload")
+        .eq("user_id", user.id)
+        .eq("kind", "session_completed")
+        .gte("occurred_at", `${today}T00:00:00Z`)
+        .lt("occurred_at", `${today}T23:59:59Z`);
+      const alreadyLogged = (todaysSessions ?? []).some((e) =>
+        payloadsMatch(pendingLog, e.payload as unknown as { type: string; exercises: ExerciseLog[] })
+      );
+
+      if (alreadyLogged) {
+        systemNote = `\n\nThis exact session (${JSON.stringify(pendingLog)}) was already confirmed and logged earlier — there's nothing new to write. Acknowledge that plainly; don't re-list every number as if it's new, and don't ask what they're confirming.`;
+      } else {
+        const { error: insertError } = await supabase.from("events").insert({
+          user_id: user.id,
+          occurred_at: `${today}T12:00:00Z`,
+          kind: "session_completed",
+          payload: { type: pendingLog.type, exercises: pendingLog.exercises, source: "chat" },
+        });
+        if (insertError) {
+          return new Response(JSON.stringify({ error: `Failed to record session: ${insertError.message}` }), { status: 500 });
+        }
+        systemNote = `\n\nThe pending log proposal was just confirmed and written to the log: ${JSON.stringify(pendingLog)}. Acknowledge it briefly in voice — you don't need to repeat every number back, just confirm it's logged.`;
       }
-      systemNote = `\n\nThe pending log proposal was just confirmed and written to the log: ${JSON.stringify(pendingLog)}. Acknowledge it briefly in voice — you don't need to repeat every number back, just confirm it's logged.`;
     } else if (classification === "deny") {
       systemNote = `\n\nThe athlete rejected the pending log proposal (${JSON.stringify(pendingLog)}) as incorrect. Nothing was written. Ask what's actually correct.`;
     } else {
-      const extraction = await extractSetLog(anthropic, lastUserMessage, pendingLog);
-      const gate = applyConfidenceGate(extraction);
-      if (gate.pendingLog) {
-        responsePendingLog = gate.pendingLog;
-        systemNote = `\n\nYou have an updated log proposal after the athlete's correction: ${JSON.stringify(gate.pendingLog)}. Echo it back in voice and ask them to confirm. Do not alter these numbers.`;
+      const patch = await extractCorrection(anthropic, lastUserMessage, pendingLog);
+      const { updated, unclearFields } = applyCorrectionPatch(pendingLog, patch);
+      if (updated) {
+        responsePendingLog = updated;
+        systemNote = `\n\nYou have an updated log proposal after the athlete's correction: ${JSON.stringify(updated)}. Echo it back in voice and ask them to confirm. Do not alter these numbers.`;
       } else {
         responsePendingLog = pendingLog; // stay pending on the original proposal rather than dropping context
-        systemNote = `\n\nThe athlete's reply didn't clearly confirm, deny, or correct the pending proposal (${JSON.stringify(pendingLog)}). Ask specifically about: ${gate.unclearFields.join(", ")}. Do not assume or guess.`;
+        systemNote = `\n\nThe athlete's reply didn't clearly confirm, deny, or correct the pending proposal (${JSON.stringify(pendingLog)}). Ask specifically about: ${unclearFields.join(", ")}. Do not assume or guess.`;
       }
     }
   } else if (looksLikeSetLog(lastUserMessage)) {

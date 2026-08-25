@@ -14,7 +14,12 @@ export interface NextScheduledSession {
  * dates rather than a surface-specific state shape.
  */
 export function computeNextScheduledSession(trainingDays: string[], loggedDates: string[], today: string): NextScheduledSession {
-  for (let offset = 0; offset < 7; offset++) {
+  // < 8, not < 7: a profile with only one training day whose sole
+  // occurrence this week is already logged needs the wraparound day
+  // (offset 7 = next week's same weekday) to find anything at all —
+  // found live when a single-training-day test profile threw here on
+  // every request after its one session was logged for the day.
+  for (let offset = 0; offset < 8; offset++) {
     const date = offset === 0 ? today : addDays(today, offset);
     const weekday = weekdayOfDateString(date);
     if (!trainingDays.includes(weekday)) continue;
