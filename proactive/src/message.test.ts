@@ -1,6 +1,7 @@
 import { test, expect } from "vitest";
 import { buildSystemPrompt } from "./message.js";
-import type { RuleFired, State } from "./types.js";
+import type { RuleFired } from "@vigil/core";
+import type { State } from "./types.js";
 
 // Marker unique to coach-prompts/core-rules.md — regression guard against
 // the grounding constitution drifting back into per-personality or

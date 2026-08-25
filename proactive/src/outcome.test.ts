@@ -1,6 +1,7 @@
 import { test, expect } from "vitest";
 import { findUnresolvedNudge } from "./outcome.js";
-import type { JournalEntry, RuleId } from "./types.js";
+import type { RuleId } from "@vigil/core";
+import type { JournalEntry } from "./types.js";
 
 const TZ = "Asia/Dubai"; // UTC+4 — matches the real profile's timezone; chosen so tests fail if the code ever does naive local-Date math instead of using dateStringInTz.
 

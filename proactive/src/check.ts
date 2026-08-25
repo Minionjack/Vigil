@@ -2,11 +2,11 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { appendJournal, deliverNtfy, readJournal } from "./deliver.js";
 import { generateMessage } from "./message.js";
-import { dateStringInTz } from "@vigil/core";
-import { computeAcknowledgment, evaluateRules } from "./rules.js";
+import { dateStringInTz, evaluateRules, computeAcknowledgment } from "@vigil/core";
+import type { Acknowledgment, FiredLogEntry, RuleFired } from "@vigil/core";
 import { loadState } from "./state.js";
 import { loadLiveState, requireEnv } from "./db.js";
-import type { Acknowledgment, FiredEntry, FiredLogEntry, RuleFired, State } from "./types.js";
+import type { FiredEntry, State } from "./types.js";
 
 // Reuse the API key from ../server/.env
 dotenv.config({ path: path.resolve(import.meta.dirname, "..", "..", "server", ".env") });

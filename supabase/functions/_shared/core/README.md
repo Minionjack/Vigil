@@ -6,8 +6,12 @@ These files are copies of the equivalent files in `packages/core/src/` —
 `nextSession.ts` (added after chat's prompt assembly was found to be
 missing a rendered "Next scheduled session" line — proactive already
 had one, chat never did, so the model was inferring a future weekday
-with nothing to back it, a real violation caught by testing). This is a
-deliberate, documented exception to this repo's "no duplicate truth" rule
+with nothing to back it, a real violation caught by testing). `rules.ts`
+was added in Phase 4 (item 1) when `evaluateRules`/`computeAcknowledgment`
+moved from `proactive/src/` into `packages/core/src/` — the pg_cron
+edge function (`supabase/functions/proactive-check`) needs the identical
+rule evaluation `proactive/`'s local CLI does, not a second copy. This is
+a deliberate, documented exception to this repo's "no duplicate truth" rule
 (`CLAUDE.md`), not an oversight.
 
 ## Why
@@ -40,7 +44,7 @@ Everything else — logic, comments, exported names — is copied verbatim.
 ## Keeping this in sync
 
 If `packages/core/src/{dateTz,stats,personality,digest,generateDigest,
-progression,trends,logging,nextSession}.ts` changes, the corresponding
+progression,trends,logging,nextSession,rules}.ts` changes, the corresponding
 file here needs the same change manually re-applied (just the two
 mechanical rewrites above — everything except `generateDigest.ts` only
 needed the import-extension rewrite, since none of the others touch

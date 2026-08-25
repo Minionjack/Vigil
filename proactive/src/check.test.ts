@@ -1,7 +1,8 @@
 import { test, expect } from "vitest";
 import { runCheck } from "./check.js";
 import type { CheckDeps } from "./check.js";
-import type { FiredLogEntry, State } from "./types.js";
+import type { FiredLogEntry } from "@vigil/core";
+import type { State } from "./types.js";
 
 // Orchestration tests for the actual cron entrypoint's decision path —
 // the highest-risk untested file per the architecture-hardening audit.

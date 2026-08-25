@@ -15,3 +15,5 @@ export { computeLiftTrends } from "./trends.js";
 export type { TrendEvent, LiftTrendPoint } from "./trends.js";
 export { looksLikeSetLog, classifyConfirmation, applyCorrectionPatch, CONFIDENCE_THRESHOLD } from "./logging.js";
 export type { ConfirmationClassification, ExerciseLog, PendingLogProposal, CorrectionPatch } from "./logging.js";
+export { evaluateRules, computeAcknowledgment } from "./rules.js";
+export type { RuleId, RuleFired, FiredLogEntry, Acknowledgment, RulesState } from "./rules.js";

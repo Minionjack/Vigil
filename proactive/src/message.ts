@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { dateStringInTz, resolvePersonality } from "@vigil/core";
+import type { Acknowledgment, RuleFired } from "@vigil/core";
 import { renderState } from "./state.js";
-import type { Acknowledgment, RuleFired, State } from "./types.js";
+import type { State } from "./types.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
 const MODEL = "claude-sonnet-4-6";

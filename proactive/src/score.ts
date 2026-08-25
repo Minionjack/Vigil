@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readJournal } from "./deliver.js";
-import type { FiredEntry, OutcomeEntry, RuleId } from "./types.js";
+import type { RuleId } from "@vigil/core";
+import type { FiredEntry, OutcomeEntry } from "./types.js";
 
 // Experiment window start per DECISION-GATE.md ("Scoring counts only nudges
 // fired on/after 2026-07-13"). Entries before this are pre-window test fire

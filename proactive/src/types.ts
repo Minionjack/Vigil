@@ -1,6 +1,4 @@
-import type { PersonalityId, ExerciseSuggestion } from "@vigil/core";
-
-export type RuleId = "R1" | "R2" | "R3" | "R4";
+import type { PersonalityId, ExerciseSuggestion, RuleId } from "@vigil/core";
 
 export interface Session {
   date: string; // YYYY-MM-DD
@@ -40,11 +38,6 @@ export interface State {
   suggestions?: ExerciseSuggestion[];
 }
 
-export interface FiredLogEntry {
-  date: string; // tz-local YYYY-MM-DD the message fired on
-  rule: RuleId;
-}
-
 export interface FiredEntry {
   kind: "fired";
   timestamp: string; // ISO
@@ -63,14 +56,3 @@ export interface OutcomeEntry {
 }
 
 export type JournalEntry = FiredEntry | OutcomeEntry;
-
-export interface Acknowledgment {
-  date: string;
-  type: string;
-}
-
-export interface RuleFired {
-  rule: RuleId;
-  reason: string;
-  patternType?: string;
-}
