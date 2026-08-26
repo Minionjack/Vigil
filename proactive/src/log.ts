@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import { appendJournal, readJournal } from "./deliver.js";
 import { findUnresolvedNudge } from "./outcome.js";
 import { dateStringInTz } from "@vigil/core";
-import { loadLiveState, recordSessionEvent, requireEnv } from "./db.js";
+import { loadLiveState, recordSessionEvent, recordFoodEvent, requireEnv } from "./db.js";
 
 dotenv.config({ path: path.resolve(import.meta.dirname, "..", "..", "server", ".env") });
 
@@ -21,15 +21,16 @@ export function isValidCalendarDate(dateStr: string): boolean {
 //   npm run log -- done pull "rows 5x5@72.5"
 //   npm run log -- skip legs "work dinner"
 //   npm run log -- done push "shoulders" --date=2026-07-17   (backfill a past date)
+//   npm run log -- food "chicken and rice" [--date=YYYY-MM-DD]
 async function main() {
   const rawArgs = process.argv.slice(2);
   const dateArg = rawArgs.find((a) => a.startsWith("--date="));
-  const [action, type, ...noteWords] = rawArgs.filter((a) => !a.startsWith("--date="));
-  const note = noteWords.join(" ");
+  const [action, ...rest] = rawArgs.filter((a) => !a.startsWith("--date="));
 
-  if ((action !== "done" && action !== "skip") || !type) {
+  if (action !== "done" && action !== "skip" && action !== "food") {
     console.error('Usage: npm run log -- done <type> "<note>"');
     console.error('       npm run log -- skip <type> "<excuse>"');
+    console.error('       npm run log -- food "<description>" [--date=YYYY-MM-DD]');
     console.error('       npm run log -- done <type> "<note>" --date=YYYY-MM-DD   (backfill)');
     process.exitCode = 1;
     return;
@@ -47,6 +48,30 @@ async function main() {
   const state = await loadLiveState(userId);
   const now = new Date();
   const date = backfillDate ?? dateStringInTz(now, state.client.timezone);
+
+  if (action === "food") {
+    const text = rest.join(" ");
+    if (!text) {
+      console.error('Usage: npm run log -- food "<description>" [--date=YYYY-MM-DD]');
+      process.exitCode = 1;
+      return;
+    }
+    // No "type", no outcome/nudge resolution — food logging doesn't
+    // participate in the proactive rules engine at all (core-rules.md's
+    // Food section, DECISIONS.md), so there's nothing to resolve here.
+    await recordFoodEvent(userId, { date, text });
+    console.log(`Logged: ${date} food — "${text}"`);
+    return;
+  }
+
+  const [type, ...noteWords] = rest;
+  const note = noteWords.join(" ");
+  if (!type) {
+    console.error('Usage: npm run log -- done <type> "<note>"');
+    console.error('       npm run log -- skip <type> "<excuse>"');
+    process.exitCode = 1;
+    return;
+  }
 
   const capitalizedType = type[0].toUpperCase() + type.slice(1);
 

@@ -13,7 +13,9 @@ export { suggestNextSession, renderSuggestedNextSession } from "./progression.js
 export type { Program, ProgramExercise, ProgressionEvent, ExerciseSuggestion, SuggestionAction } from "./progression.js";
 export { computeLiftTrends } from "./trends.js";
 export type { TrendEvent, LiftTrendPoint } from "./trends.js";
-export { looksLikeSetLog, classifyConfirmation, applyCorrectionPatch, CONFIDENCE_THRESHOLD } from "./logging.js";
+export { looksLikeSetLog, looksLikeFoodLog, classifyConfirmation, applyCorrectionPatch, CONFIDENCE_THRESHOLD } from "./logging.js";
 export type { ConfirmationClassification, ExerciseLog, PendingLogProposal, CorrectionPatch } from "./logging.js";
 export { evaluateRules, computeAcknowledgment } from "./rules.js";
 export type { RuleId, RuleFired, FiredLogEntry, Acknowledgment, RulesState } from "./rules.js";
+export { computeFoodStats, renderFoodLog } from "./food.js";
+export type { FoodEvent, FoodEntry, FoodStats } from "./food.js";

@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { looksLikeSetLog, classifyConfirmation, applyCorrectionPatch } from "./logging.js";
+import { looksLikeSetLog, looksLikeFoodLog, classifyConfirmation, applyCorrectionPatch } from "./logging.js";
 import type { PendingLogProposal } from "./logging.js";
 
 test("looksLikeSetLog: a real logging message with a lift name, set notation, and RPE routes to extraction", () => {
@@ -13,6 +13,17 @@ test("looksLikeSetLog: a vague mention of a lift still routes — the confidence
 test("looksLikeSetLog: ordinary chat with no lift signal doesn't route", () => {
   expect(looksLikeSetLog("how's the plan looking for tomorrow?")).toBe(false);
   expect(looksLikeSetLog("we good?")).toBe(false);
+});
+
+test("looksLikeFoodLog: routes the brief's own three example messages", () => {
+  expect(looksLikeFoodLog("had chicken and rice")).toBe(true);
+  expect(looksLikeFoodLog("skipped lunch")).toBe(true);
+  expect(looksLikeFoodLog("takeaway again")).toBe(true);
+});
+
+test("looksLikeFoodLog: ordinary chat with no food signal doesn't route", () => {
+  expect(looksLikeFoodLog("how's the plan looking for tomorrow?")).toBe(false);
+  expect(looksLikeFoodLog("we good?")).toBe(false);
 });
 
 test("classifyConfirmation: a clean yes confirms", () => {

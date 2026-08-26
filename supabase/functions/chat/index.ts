@@ -35,6 +35,7 @@ import { CORE_RULES, PERSONALITY_PROMPTS } from "../_shared/prompts.ts";
 import { suggestNextSession, renderSuggestedNextSession, type Program, type ProgressionEvent } from "../_shared/core/progression.ts";
 import {
   looksLikeSetLog,
+  looksLikeFoodLog,
   classifyConfirmation,
   applyCorrectionPatch,
   CONFIDENCE_THRESHOLD,
@@ -43,6 +44,14 @@ import {
   type CorrectionPatch,
 } from "../_shared/core/logging.ts";
 import { computeNextScheduledSession } from "../_shared/core/nextSession.ts";
+import { computeFoodStats, renderFoodLog, type FoodEvent } from "../_shared/core/food.ts";
+
+const FOOD_LOG_WINDOW_DAYS = 7;
+
+interface PendingFoodLogProposal {
+  text: string;
+  items?: string[];
+}
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -184,6 +193,52 @@ async function extractCorrection(anthropic: Anthropic, text: string, pendingLog:
   return toolUse!.input as CorrectionPatch;
 }
 
+const FOOD_EXTRACTION_TOOL = {
+  name: "food_log_extraction",
+  description:
+    "Determine whether the athlete's message genuinely reports what they ate or skipped, as opposed to a question, a plan, or idle conversation about food (\"what should I eat tonight?\" is NOT a log). If it is a real report, optionally identify discrete food items cleanly stated in the message — never invent an item that isn't actually there.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      is_food_log: {
+        type: "boolean",
+        description: "true only if this message reports something actually eaten or skipped, not a question or hypothetical",
+      },
+      items: {
+        type: "array",
+        items: { type: "string" },
+        description: "discrete food items cleanly identifiable from the message — omit entirely if it doesn't cleanly break into items",
+      },
+    },
+    required: ["is_food_log"],
+  },
+};
+
+interface FoodExtractionResult {
+  is_food_log: boolean;
+  items?: string[];
+}
+
+/**
+ * The model's only job here is deciding whether this is genuinely a food
+ * report and, optionally, splitting it into items — it never produces
+ * the stored text. `text` is always lastUserMessage itself, set in code
+ * (Deno.serve below), matching the brief's "verbatim, exactly as said."
+ */
+async function extractFoodLog(anthropic: Anthropic, text: string): Promise<FoodExtractionResult> {
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 200,
+    system: `Using the food_log_extraction tool, determine whether the athlete's message reports something they actually ate or skipped.`,
+    messages: [{ role: "user", content: text }],
+    tools: [FOOD_EXTRACTION_TOOL],
+    tool_choice: { type: "tool", name: "food_log_extraction" },
+  });
+
+  const toolUse = response.content.find((b) => b.type === "tool_use");
+  return toolUse!.input as FoodExtractionResult;
+}
+
 /**
  * The write gate, in code: a field only survives into a pendingLog if
  * its confidence clears the threshold. Anything that doesn't produces a
@@ -235,6 +290,15 @@ function payloadsMatch(a: PendingLogProposal, b: { type: string; exercises: Exer
   });
 }
 
+/**
+ * Same idempotency discipline as payloadsMatch above, applied to food's
+ * simpler single-field shape — added proactively here rather than
+ * waiting to rediscover the duplicate-confirm crash a second time.
+ */
+function foodPayloadsMatch(a: PendingFoodLogProposal, b: { text: string }): boolean {
+  return a.text.trim().toLowerCase() === b.text.trim().toLowerCase();
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
@@ -257,6 +321,7 @@ Deno.serve(async (req) => {
   const messages = body?.messages;
   const personality = resolvePersonality(body?.personality);
   const pendingLog = body?.pendingLog as PendingLogProposal | undefined;
+  const pendingFoodLog = body?.pendingFoodLog as PendingFoodLogProposal | undefined;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(JSON.stringify({ error: "Request body must include a non-empty `messages` array." }), { status: 400 });
@@ -332,6 +397,15 @@ Deno.serve(async (req) => {
       })()
     : `\n\n## Session type check\nNo session type is identifiable from today's message — do not guess or attribute one.`;
 
+  // Milestone 3.5 — always rendered, same as Verified stats, regardless
+  // of whether the conversation is about food at all. allEvents already
+  // fetches every kind (no `.in()` filter above), so food_logged rows
+  // are already present here without a query change.
+  const foodEvents: FoodEvent[] = allEvents
+    .filter((e) => e.kind === "food_logged")
+    .map((e) => ({ occurred_at: e.occurred_at, payload: e.payload as unknown as { text: string; items?: string[] } }));
+  const foodLogSection = `\n\n${renderFoodLog(computeFoodStats(foodEvents, today, FOOD_LOG_WINDOW_DAYS))}`;
+
   const coreRules = CORE_RULES;
   const personalityVoice = PERSONALITY_PROMPTS[personality];
 
@@ -350,7 +424,7 @@ Training days: ${(profile.training_days as string[]).join(", ")}
 Usual session time: ${profile.usual_session_time}
 ${todayStatusLine}${nextScheduledLine}
 ## Verified stats (computed from events — the only numbers you may cite as a count, streak, "X of Y", or "days since" claim)
-${verifiedStats}${suggestionsSection}${priorSkipsSection}
+${verifiedStats}${suggestionsSection}${priorSkipsSection}${foodLogSection}
 
 ${digestSection}`;
 
@@ -427,6 +501,66 @@ ${digestSection}`;
     }
   }
 
+  // Food logging (Milestone 3.5), independent of the session-logging
+  // branch above — a message could in principle touch both, and each
+  // gets its own pendingLog slot round-tripping through the client the
+  // same way. Simpler than sessions: one text field, not five, so a
+  // correction just re-extracts and replaces rather than patching.
+  let responsePendingFoodLog: PendingFoodLogProposal | undefined;
+
+  if (pendingFoodLog) {
+    const classification = classifyConfirmation(lastUserMessage);
+
+    if (classification === "confirm") {
+      const { data: todaysFood } = await supabase
+        .from("events")
+        .select("payload")
+        .eq("user_id", user.id)
+        .eq("kind", "food_logged")
+        .gte("occurred_at", `${today}T00:00:00Z`)
+        .lt("occurred_at", `${today}T23:59:59Z`);
+      const alreadyLogged = (todaysFood ?? []).some((e) => foodPayloadsMatch(pendingFoodLog, e.payload as unknown as { text: string }));
+
+      if (alreadyLogged) {
+        systemNote += `\n\nThis exact food entry ("${pendingFoodLog.text}") was already confirmed and logged earlier — there's nothing new to write. Acknowledge that plainly, don't ask what they're confirming.`;
+      } else {
+        const { error: insertError } = await supabase.from("events").insert({
+          user_id: user.id,
+          occurred_at: `${today}T12:00:00Z`,
+          kind: "food_logged",
+          payload: { text: pendingFoodLog.text, items: pendingFoodLog.items },
+        });
+        if (insertError) {
+          return new Response(JSON.stringify({ error: `Failed to record food entry: ${insertError.message}` }), { status: 500 });
+        }
+        systemNote += `\n\nThe pending food entry was just confirmed and written to the log: "${pendingFoodLog.text}". Acknowledge it briefly and neutrally — descriptive, not praise or judgment (see core-rules.md's Food section).`;
+      }
+    } else if (classification === "deny") {
+      systemNote += `\n\nThe athlete rejected the pending food entry ("${pendingFoodLog.text}") as incorrect. Nothing was written. Ask what's actually correct.`;
+    } else {
+      const reExtraction = await extractFoodLog(anthropic, lastUserMessage);
+      if (reExtraction.is_food_log) {
+        const updated: PendingFoodLogProposal = { text: lastUserMessage, items: reExtraction.items };
+        responsePendingFoodLog = updated;
+        systemNote += `\n\nYou have an updated food entry after the athlete's correction: "${updated.text}". Echo it back neutrally and ask them to confirm.`;
+      } else {
+        responsePendingFoodLog = pendingFoodLog; // stay pending on the original proposal
+        systemNote += `\n\nThe athlete's reply didn't clearly confirm, deny, or correct the pending food entry ("${pendingFoodLog.text}"). Ask what they mean, plainly.`;
+      }
+    }
+  } else if (looksLikeFoodLog(lastUserMessage)) {
+    const extraction = await extractFoodLog(anthropic, lastUserMessage);
+    if (extraction.is_food_log) {
+      const proposal: PendingFoodLogProposal = { text: lastUserMessage, items: extraction.items };
+      responsePendingFoodLog = proposal;
+      systemNote += `\n\nYou have a new food entry to confirm: "${proposal.text}". Echo it back neutrally (e.g. "Logging: chicken and rice. Confirm?") and ask for confirmation. Descriptive only — no judgment, no praise, no nutritional estimate (see core-rules.md's Food section).`;
+    }
+    // If extraction says this isn't actually a food log (a question, a
+    // hypothetical), no pendingFoodLog is created and no note is added —
+    // it's just ordinary conversation, exactly as core-rules.md's Food
+    // section and the "never raise unprompted" rule both expect.
+  }
+
   const response = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 1024,
@@ -439,5 +573,7 @@ ${digestSection}`;
     .map((b) => b.text)
     .join("\n");
 
-  return new Response(JSON.stringify({ reply, pendingLog: responsePendingLog }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ reply, pendingLog: responsePendingLog, pendingFoodLog: responsePendingFoodLog }), {
+    headers: { "Content-Type": "application/json" },
+  });
 });

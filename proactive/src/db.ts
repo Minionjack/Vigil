@@ -200,3 +200,25 @@ async function recordSessionEventOnce(userId: string, session: Session, supabase
     throw new Error(`Failed to record session event: ${error.message}`);
   }
 }
+
+/**
+ * Milestone 3.5 — the CLI's write path for food logging, same shape and
+ * discipline as recordSessionEvent: `text` is stored verbatim, no
+ * nutritional field exists to compute or invent.
+ */
+export async function recordFoodEvent(userId: string, entry: { date: string; text: string }, supabase: SupabaseClient = getDefaultClient()): Promise<void> {
+  return withRetry(() => recordFoodEventOnce(userId, entry, supabase), isJwtClockSkewError);
+}
+
+async function recordFoodEventOnce(userId: string, entry: { date: string; text: string }, supabase: SupabaseClient): Promise<void> {
+  const { error } = await supabase.from("events").insert({
+    user_id: userId,
+    occurred_at: `${entry.date}T12:00:00Z`,
+    kind: "food_logged",
+    payload: { text: entry.text },
+  });
+
+  if (error) {
+    throw new Error(`Failed to record food event: ${error.message}`);
+  }
+}

@@ -34,6 +34,20 @@ export function looksLikeSetLog(text: string): boolean {
   return LIFT_KEYWORD.test(text) || SET_NOTATION.test(text) || (WEIGHT_MENTION.test(text) && RPE_MENTION.test(text));
 }
 
+const FOOD_KEYWORD = /\b(ate|had|breakfast|lunch|dinner|snack|takeaway|takeout|food|meal)\b/i;
+
+/**
+ * Same routing-gate philosophy as looksLikeSetLog, same accepted
+ * tradeoff: "had" alone is broad enough to route some non-food messages
+ * too, but the real gate is the extraction call's own is_food_log
+ * boolean (supabase/functions/chat/index.ts), which is what actually
+ * decides whether a pendingFoodLog gets created — an extra small API
+ * call on a false positive, never a write.
+ */
+export function looksLikeFoodLog(text: string): boolean {
+  return FOOD_KEYWORD.test(text);
+}
+
 export interface ExerciseLog {
   exercise: string;
   weight_kg: number;
