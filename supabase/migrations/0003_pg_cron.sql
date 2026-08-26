@@ -18,6 +18,19 @@
 -- access internally via SUPABASE_SERVICE_ROLE_KEY, already set as a
 -- project secret. No secret value is embedded here — the call below
 -- carries no Authorization header at all, matching --no-verify-jwt.
+--
+-- The pre-existing 'nightly-digest' job's command was found to carry the
+-- real service_role key in plaintext (visible to anyone who can query
+-- cron.job) — a leftover from when nightly-digest still verified JWTs.
+-- Investigated before assuming it was benign: single Supabase org
+-- member, no other account with access, the exposed key matched the
+-- project's own already-legitimate service_role key rather than
+-- something foreign — no sign of external access, most likely dashboard
+-- drift from early project setup. Fixed live (not via a migration, since
+-- the job predates any migration) by re-scheduling 'nightly-digest' with
+-- the same no-header pattern as proactive-check, now that
+-- --no-verify-jwt makes the header unnecessary entirely — no secret
+-- anywhere in cron.job at all, simpler than routing it through Vault.
 
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net with schema extensions;
