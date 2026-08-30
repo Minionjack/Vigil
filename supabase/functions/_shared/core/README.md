@@ -13,8 +13,10 @@ edge function (`supabase/functions/proactive-check`) needs the identical
 rule evaluation `proactive/`'s local CLI does, not a second copy. `food.ts`
 was added in Milestone 3.5 (food logging) for the same reason `stats.ts`
 is here — chat's edge function needs `computeFoodStats`/`renderFoodLog`.
-This is a deliberate, documented exception to this repo's "no duplicate
-truth" rule (`CLAUDE.md`), not an oversight.
+`dashboard.ts` was added for Phase 5's consistency dashboard — `history`'s
+edge function needs `computeDashboardStats`. This is a deliberate,
+documented exception to this repo's "no duplicate truth" rule
+(`CLAUDE.md`), not an oversight.
 
 ## Why
 
@@ -46,7 +48,7 @@ Everything else — logic, comments, exported names — is copied verbatim.
 ## Keeping this in sync
 
 If `packages/core/src/{dateTz,stats,personality,digest,generateDigest,
-progression,trends,logging,nextSession,rules,food}.ts` changes, the corresponding
+progression,trends,logging,nextSession,rules,food,dashboard}.ts` changes, the corresponding
 file here needs the same change manually re-applied (just the two
 mechanical rewrites above — everything except `generateDigest.ts` only
 needed the import-extension rewrite, since none of the others touch

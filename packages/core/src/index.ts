@@ -19,3 +19,5 @@ export { evaluateRules, computeAcknowledgment } from "./rules.js";
 export type { RuleId, RuleFired, FiredLogEntry, Acknowledgment, RulesState } from "./rules.js";
 export { computeFoodStats, renderFoodLog } from "./food.js";
 export type { FoodEvent, FoodEntry, FoodStats } from "./food.js";
+export { computeDashboardStats } from "./dashboard.js";
+export type { WeeklyBreakdown, DashboardStats } from "./dashboard.js";

@@ -7,6 +7,10 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { computeLiftTrends } from "../_shared/core/trends.ts";
+import { computeDashboardStats } from "../_shared/core/dashboard.ts";
+import type { CoreSession } from "../_shared/core/stats.ts";
+
+const DASHBOARD_WEEKS_BACK = 4;
 
 interface EventRow {
   occurred_at: string;
@@ -53,21 +57,31 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("occurred_at, kind, payload")
-    .eq("user_id", user.id)
-    .in("kind", ["session_completed", "session_skipped"])
-    .order("occurred_at", { ascending: false })
-    .limit(200);
+  const [{ data: events, error }, { data: profile, error: profileError }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("occurred_at, kind, payload")
+      .eq("user_id", user.id)
+      .in("kind", ["session_completed", "session_skipped"])
+      .order("occurred_at", { ascending: false })
+      .limit(200),
+    supabase.from("profiles").select("training_days").eq("user_id", user.id).single(),
+  ]);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
+  if (profileError || !profile) {
+    return new Response(JSON.stringify({ error: profileError?.message ?? "No profile for this user." }), { status: 404 });
   }
 
   const allEvents = events ?? [];
   const sessions = allEvents.map(sessionSummary);
   const trends = computeLiftTrends(allEvents);
 
-  return new Response(JSON.stringify({ sessions, trends }), { headers: { "Content-Type": "application/json" } });
+  const today = new Date().toISOString().slice(0, 10);
+  const coreSessions: CoreSession[] = sessions.map((s) => ({ date: s.date, type: s.type, status: s.status, excuse: s.excuse }));
+  const dashboardStats = computeDashboardStats(coreSessions, profile.training_days as string[], today, DASHBOARD_WEEKS_BACK);
+
+  return new Response(JSON.stringify({ sessions, trends, dashboardStats }), { headers: { "Content-Type": "application/json" } });
 });

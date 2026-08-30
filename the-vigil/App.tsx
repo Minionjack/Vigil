@@ -398,6 +398,126 @@ function HistoryScreen({ onDismiss, coachAccent }: { onDismiss: () => void; coac
   );
 }
 
+interface WeeklyBreakdown {
+  weekStart: string;
+  completed: number;
+  scheduled: number;
+}
+
+interface DashboardStats {
+  currentStreak: number;
+  weeklyBreakdown: WeeklyBreakdown[];
+  perTypeCompletion: Record<string, { completed: number; skipped: number }>;
+}
+
+// Phase 5's ungated slice: current streak, trailing-4-weeks completion
+// vs. plan, per-type completion — all computed server-side by the same
+// history edge function History already calls (dashboardStats is a new
+// field on that same response, not a second round-trip). No gamification
+// beyond the streak number, per the brief's own "Phase Never until users
+// ask" — no badges, no new chart library, the trend card's existing bar
+// visual is reused for the weekly bars rather than reinvented.
+function DashboardScreen({ onDismiss, coachAccent }: { onDismiss: () => void; coachAccent: string }) {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const res = await fetch(`${SERVER_URL}/history`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
+        });
+        if (!res.ok) throw new Error(`Server responded ${res.status}`);
+        const data = await res.json();
+        setStats(data.dashboardStats);
+      } catch {
+        setLoadError(true);
+      }
+    })();
+  }, []);
+
+  const perType = stats ? Object.entries(stats.perTypeCompletion) : [];
+
+  return (
+    <LinearGradient colors={[colors.voidTop, colors.void]} style={styles.gradientRoot}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <View style={styles.pickerHeader}>
+          <TouchableOpacity onPress={onDismiss} hitSlop={12} style={styles.pickerDismissTouchable} accessibilityRole="button" accessibilityLabel="Back to chat">
+            <Text style={styles.pickerDismiss}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.pickerIntro}>
+          <Text style={styles.pickerTitle}>Dashboard</Text>
+          <Text style={styles.pickerSubtitle}>Consistency, computed — not a badge in sight.</Text>
+        </View>
+
+        {loadError && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyBody}>Couldn't load the dashboard — check the connection and try again.</Text>
+          </View>
+        )}
+
+        {!loadError && !stats && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyBody}>Loading…</Text>
+          </View>
+        )}
+
+        {stats && (
+          <View style={styles.historyList}>
+            <View style={styles.statRow}>
+              <Text style={[styles.statValue, { color: coachAccent }]}>{stats.currentStreak}</Text>
+              <Text style={styles.statLabel}>session{stats.currentStreak === 1 ? "" : "s"} completed in a row</Text>
+            </View>
+
+            <View style={styles.trendCard}>
+              <Text style={styles.trendTitle}>LAST 4 WEEKS</Text>
+              <View style={styles.trendRow}>
+                {stats.weeklyBreakdown.map((week, i) => (
+                  <View key={i} style={styles.trendBarWrap}>
+                    <View
+                      style={[
+                        styles.trendBar,
+                        {
+                          height: 8 + 60 * (week.scheduled > 0 ? Math.min(week.completed / week.scheduled, 1) : 0),
+                          backgroundColor: week.completed >= week.scheduled && week.scheduled > 0 ? coachAccent : colors.textDim,
+                        },
+                      ]}
+                    />
+                    <Text style={styles.trendBarLabel}>
+                      {week.completed}/{week.scheduled}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.trendCard}>
+              <Text style={styles.trendTitle}>BY TYPE (LAST 4 WEEKS)</Text>
+              {perType.length === 0 ? (
+                <Text style={styles.emptyBody}>Nothing logged in this window yet.</Text>
+              ) : (
+                perType.map(([type, counts]) => (
+                  <View key={type} style={styles.dashboardTypeRow}>
+                    <Text style={[styles.dashboardTypeName, { color: coachAccent }]}>{type}</Text>
+                    <Text style={styles.dashboardTypeCounts}>
+                      {counts.completed} done · {counts.skipped} skipped
+                    </Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        )}
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
 // No per-message avatar: this is a 1:1 conversation with exactly one
 // coach, not a group thread, so repeating its Orb on every line is the
 // convention this design deliberately breaks from (every mainstream
@@ -474,7 +594,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [personality, setPersonality] = useState<PersonalityId | null>(null);
   const [showPicker, setShowPicker] = useState(false);
-  const [screen, setScreen] = useState<"chat" | "history">("chat");
+  const [screen, setScreen] = useState<"chat" | "history" | "dashboard">("chat");
   const [pendingLog, setPendingLog] = useState<PendingLogProposal | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const sendScale = useSharedValue(1);
@@ -605,6 +725,9 @@ export default function App() {
   if (screen === "history") {
     return <HistoryScreen onDismiss={() => setScreen("chat")} coachAccent={current.accent} />;
   }
+  if (screen === "dashboard") {
+    return <DashboardScreen onDismiss={() => setScreen("chat")} coachAccent={current.accent} />;
+  }
   const sendDisabled = isTyping || !input.trim();
 
   return (
@@ -630,6 +753,15 @@ export default function App() {
               accessibilityLabel="View history"
             >
               <Text style={styles.headerAction}>History</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setScreen("dashboard")}
+              hitSlop={12}
+              style={styles.headerActionTouchable}
+              accessibilityRole="button"
+              accessibilityLabel="View dashboard"
+            >
+              <Text style={styles.headerAction}>Dashboard</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setShowPicker(true)}
@@ -1006,6 +1138,36 @@ const styles = StyleSheet.create({
     color: colors.textDim,
     fontFamily: fonts.mono.regular,
     fontSize: fontSizes.xs - 2,
+  },
+  statRow: {
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  statValue: {
+    fontFamily: fonts.display.bold,
+    fontSize: 48,
+  },
+  statLabel: {
+    color: colors.textDim,
+    fontFamily: fonts.mono.regular,
+    fontSize: fontSizes.xs,
+    letterSpacing: 0.6,
+  },
+  dashboardTypeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.xs,
+  },
+  dashboardTypeName: {
+    fontFamily: fonts.mono.medium,
+    fontSize: fontSizes.sm,
+    letterSpacing: 0.8,
+  },
+  dashboardTypeCounts: {
+    color: colors.textDim,
+    fontFamily: fonts.mono.regular,
+    fontSize: fontSizes.xs,
   },
   historyRow: {
     backgroundColor: colors.surface2,
