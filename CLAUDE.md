@@ -61,9 +61,15 @@ as of the architecture-hardening audit. A real ESLint config exists too
 rules) — scoped to `packages/core`, `server`, `proactive`, `scripts`;
 `the-vigil` carries its own separate config and install rather than
 sharing the root one (not an npm workspace member). `lint` scripts exist
-in every package's `package.json`. Nothing runs any of this automatically
-— there's no CI in this repo — so it's a convention to remember, not a
-gate that stops a bad commit; run it yourself, every time.
+in every package's `package.json`. If the change touched any file in
+`packages/core/src/` that's vendored into `supabase/functions/_shared/core/`
+(see that directory's `README.md` for the current list), also run
+`npm run check:vendor` from the repo root — it diffs the vendored copies
+against source (modulo the documented mechanical rewrites) and fails
+loudly on anything else, per `scripts/check-vendor-drift.ts`. Nothing
+runs any of this automatically — there's no CI in this repo — so it's a
+convention to remember, not a gate that stops a bad commit; run it
+yourself, every time.
 No green, no done.
 
 ## the-vigil verification (Expo Go, real device — not Playwright/browser)
