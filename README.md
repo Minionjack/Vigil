@@ -15,17 +15,21 @@ if it were verified.
 
 No install beyond the free **Expo Go** app (App Store / Play Store).
 Open this on the phone that has Expo Go, or scan its QR from
-[expo.dev](https://expo.dev/accounts/theworldfromjack/projects/the-vigil/updates/4c395d28-c247-4652-8c7f-58c471edd870):
+[expo.dev](https://expo.dev/accounts/theworldfromjack/projects/the-vigil/updates/f700beef-f1dc-44e6-beea-d4d663e237b6):
 
-**https://expo.dev/accounts/theworldfromjack/projects/the-vigil/updates/4c395d28-c247-4652-8c7f-58c471edd870**
+**https://expo.dev/accounts/theworldfromjack/projects/the-vigil/updates/f700beef-f1dc-44e6-beea-d4d663e237b6**
 
 That page shows a QR and an "Open in Expo Go" link — no Apple account,
 no App Store review, no local server to run. It talks to the real,
 live backend (see below), so anything logged through it is real data,
-not a fixture. It's Expo Go, not a real app icon on the home screen, and
-it stops matching the running code the moment `the-vigil/`'s native
-dependencies change without a fresh `eas update` publish (see
-"Publishing an update" below) — fine for using/demoing the app, not a
+not a fixture. Each `eas update` publish gets its own URL like this one
+— it doesn't update in place, so this link (and this README) needs a
+manual edit after any future publish, or Gonzalo/whoever's testing ends
+up on stale code without realizing it. It's Expo Go, not a real app icon
+on the home screen, and it stops matching the running code the moment
+`the-vigil/`'s native dependencies change without a fresh `eas update`
+publish (see "Publishing an update" below) — fine for using/demoing the
+app, not a
 substitute for a real build once that's warranted.
 
 ## Current status
