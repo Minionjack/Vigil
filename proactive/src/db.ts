@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import WebSocket from "ws";
-import { suggestNextSession, dateStringInTz, type Program, type ProgressionEvent } from "@vigil/core";
+import { suggestNextSession, dateStringInTz, validateFoodEstimateProvenance, type Program, type ProgressionEvent } from "@vigil/core";
 import type { Session, State } from "./types.js";
 
 export function requireEnv(name: string): string {
@@ -206,16 +206,36 @@ async function recordSessionEventOnce(userId: string, session: Session, supabase
  * discipline as recordSessionEvent: `text` is stored verbatim, no
  * nutritional field exists to compute or invent.
  */
-export async function recordFoodEvent(userId: string, entry: { date: string; text: string }, supabase: SupabaseClient = getDefaultClient()): Promise<void> {
+export async function recordFoodEvent(
+  userId: string,
+  entry: { date: string; text: string; calories_est?: number; source?: string },
+  supabase: SupabaseClient = getDefaultClient()
+): Promise<void> {
   return withRetry(() => recordFoodEventOnce(userId, entry, supabase), isJwtClockSkewError);
 }
 
-async function recordFoodEventOnce(userId: string, entry: { date: string; text: string }, supabase: SupabaseClient): Promise<void> {
+async function recordFoodEventOnce(
+  userId: string,
+  entry: { date: string; text: string; calories_est?: number; source?: string },
+  supabase: SupabaseClient
+): Promise<void> {
+  // estimated_at is the one provenance field this CLI supplies itself
+  // rather than taking from the caller — it's genuinely "when this
+  // estimate was recorded into the system," not a guess or a default
+  // standing in for a value nobody has. validateFoodEstimateProvenance
+  // still enforces calories_est/source arriving together (or not at
+  // all) before this timestamp is ever attached to either.
+  const provenance = validateFoodEstimateProvenance({
+    calories_est: entry.calories_est,
+    source: entry.source,
+    estimated_at: entry.calories_est !== undefined || entry.source !== undefined ? new Date().toISOString() : undefined,
+  });
+
   const { error } = await supabase.from("events").insert({
     user_id: userId,
     occurred_at: `${entry.date}T12:00:00Z`,
     kind: "food_logged",
-    payload: { text: entry.text },
+    payload: provenance ? { text: entry.text, ...provenance } : { text: entry.text },
   });
 
   if (error) {

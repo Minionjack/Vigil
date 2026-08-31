@@ -7,6 +7,13 @@ choices — not the same thing.
 
 ## Food logging reverses "nutrition anything" out-of-scope (Milestone 3.5)
 
+**Superseded in part by "Food logging gains external calorie estimation
+via Gemini" below** — the no-estimation stance this entry describes was
+correct when written and shipped, but scope changed afterward. Left
+in place, not deleted, because the reasoning for logging-not-tracking
+still holds; only the "never any calorie number, ever" absolutism no
+longer does.
+
 `BRIEF-PHASE3.md` and `BRIEF-PHASE5.md` both list "nutrition anything" as
 out of scope. Milestone 3.5 reverses that, deliberately and narrowly: for
 food *logging* only — Jack saying what he ate, stored verbatim, cited
@@ -23,6 +30,46 @@ off. If a future version wants real nutritional numbers, they come from
 a real lookup API with confirm-before-write, never model estimation —
 that's a separate brief with its own decision, not an extension of this
 one.
+
+## Food logging gains external calorie estimation via Gemini (supersedes the no-estimation stance above)
+
+This is the "separate brief with its own decision" the entry above
+anticipated. The brief for this was drafted in chat, not committed to
+the repo, then amended in the same chat conversation when Jack decided
+to use Gemini as an external calorie estimator — the amendment never
+made it into `DECISIONS.md`, which is why a plain reading of the repo
+(before this entry) said no-estimation, full stop, and a milestone
+commit shipped exactly that. This entry is the record that should have
+landed alongside that amendment.
+
+The constraint: estimates arrive from an external estimator (Gemini),
+never from this app or its own model calls — nothing in this repo ever
+generates a nutritional number itself, and the coach's system prompt
+still forbids the model from estimating anything. A stored estimate
+carries mandatory provenance, `source` and `estimated_at`, alongside
+`calories_est` — all three or none; a caller that supplies one without
+the others fails loudly rather than writing a partial or defaulted
+estimate (`validateFoodEstimateProvenance` in `packages/core/src/food.ts`).
+The coach may cite a stored estimate back, always hedged and attributed
+("about 650 kcal, estimated via Gemini — not verified") — never as a
+number it produced itself, never unhedged, never as material for
+goal-arithmetic (that ban stands from `core-rules.md`'s existing Goals
+section).
+
+Why: the original no-estimation decision was right for the reason it was
+made — this app inventing a calorie number is exactly the fabrication
+risk `core-rules.md`'s "you never derive, you only phrase" principle
+exists to prevent. Routing estimation through an external tool with a
+human in the loop (Jack pastes a description into Gemini, gets a number,
+logs it explicitly) keeps that principle intact — the number was never
+computed by anything in this system, only recorded with its source. What
+changes is the product decision to store and cite it at all, not the
+architectural discipline around who's allowed to produce it.
+
+Everything the original Milestone 3.5 shipped stays unchanged: neutral
+register, no per-meal judgment, no goal-arithmetic, no proactive food
+nudging. This is additive — a food entry with no estimate behaves
+exactly as before.
 
 ## Food gets a deliberately different register than training (Milestone 3.5)
 

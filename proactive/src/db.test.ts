@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { loadLiveState, recordSessionEvent } from "./db.js";
+import { loadLiveState, recordSessionEvent, recordFoodEvent } from "./db.js";
 
 const localConfig = {
   journal_config: { max_messages_per_day: 2, quiet_hours: { before: "06:30", after: "21:30" }, delivery: { method: "ntfy", topic: "t" } },
@@ -147,5 +147,39 @@ test("recordSessionEvent surfaces an insert error instead of swallowing it", asy
 test("loadLiveState surfaces an events-query error instead of silently returning an empty session list", async () => {
   const { client } = fakeClient({ profile: { name: "Jack" }, eventsError: { message: "network blip" } });
   await expect(loadLiveState("user-1", client, localConfig)).rejects.toThrow(/network blip/);
+});
+
+test("recordFoodEvent with no estimate writes just text, exactly as before this feature existed", async () => {
+  const { client, insertedRows } = fakeClient({});
+  await recordFoodEvent("user-1", { date: "2026-08-26", text: "chicken and rice" }, client);
+
+  expect(insertedRows).toEqual([
+    {
+      user_id: "user-1",
+      occurred_at: "2026-08-26T12:00:00Z",
+      kind: "food_logged",
+      payload: { text: "chicken and rice" },
+    },
+  ]);
+});
+
+test("recordFoodEvent with calories_est and source attaches all three provenance fields, estimated_at set by this call", async () => {
+  const { client, insertedRows } = fakeClient({});
+  await recordFoodEvent("user-1", { date: "2026-08-26", text: "chicken and rice", calories_est: 650, source: "gemini" }, client);
+
+  expect(insertedRows).toHaveLength(1);
+  const row = insertedRows[0] as { payload: { text: string; calories_est: number; source: string; estimated_at: string } };
+  expect(row.payload.text).toBe("chicken and rice");
+  expect(row.payload.calories_est).toBe(650);
+  expect(row.payload.source).toBe("gemini");
+  expect(new Date(row.payload.estimated_at).toString()).not.toBe("Invalid Date");
+});
+
+test("recordFoodEvent with only calories_est (no source) fails loudly rather than writing a partial estimate", async () => {
+  const { client, insertedRows } = fakeClient({});
+  await expect(recordFoodEvent("user-1", { date: "2026-08-26", text: "mystery meal", calories_est: 400 }, client)).rejects.toThrow(
+    /Incomplete calorie-estimate provenance/
+  );
+  expect(insertedRows).toEqual([]); // the failed validation must run before the insert, not after
 });
 

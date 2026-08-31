@@ -403,7 +403,7 @@ Deno.serve(async (req) => {
   // are already present here without a query change.
   const foodEvents: FoodEvent[] = allEvents
     .filter((e) => e.kind === "food_logged")
-    .map((e) => ({ occurred_at: e.occurred_at, payload: e.payload as unknown as { text: string; items?: string[] } }));
+    .map((e) => ({ occurred_at: e.occurred_at, payload: e.payload as unknown as FoodEvent["payload"] }));
   const foodLogSection = `\n\n${renderFoodLog(computeFoodStats(foodEvents, today, FOOD_LOG_WINDOW_DAYS))}`;
 
   const coreRules = CORE_RULES;

@@ -17,7 +17,7 @@ export { looksLikeSetLog, looksLikeFoodLog, classifyConfirmation, applyCorrectio
 export type { ConfirmationClassification, ExerciseLog, PendingLogProposal, CorrectionPatch } from "./logging.js";
 export { evaluateRules, computeAcknowledgment } from "./rules.js";
 export type { RuleId, RuleFired, FiredLogEntry, Acknowledgment, RulesState } from "./rules.js";
-export { computeFoodStats, renderFoodLog } from "./food.js";
-export type { FoodEvent, FoodEntry, FoodStats } from "./food.js";
+export { computeFoodStats, renderFoodLog, validateFoodEstimateProvenance } from "./food.js";
+export type { FoodEvent, FoodEntry, FoodStats, FoodEstimateProvenance } from "./food.js";
 export { computeDashboardStats } from "./dashboard.js";
 export type { WeeklyBreakdown, DashboardStats } from "./dashboard.js";
