@@ -199,7 +199,14 @@ ${renderVerifiedStats(computeSessionStats(sessions, today), null)}${suggestionsS
       user_id: userId,
       occurred_at: now.toISOString(),
       kind: "nudge_fired",
-      payload: { rule: fired.rule, reason: fired.reason, message },
+      // source: "cloud" makes the Phase 4 decommission bar ("cloud nudges
+      // verified for three consecutive days," BRIEF-PHASE4.md) a direct
+      // query from here on, instead of inferring liveness from how close
+      // recorded_at sits to occurred_at — the local proactive/ cron never
+      // writes to this table at all, so today every row is cloud-origin
+      // by construction, but that fact shouldn't have to be re-derived by
+      // whoever checks this next.
+      payload: { rule: fired.rule, reason: fired.reason, message, source: "cloud" },
     });
     if (insertError) {
       results.push({ user_id: userId, fired: `${fired.rule} (delivered, event insert failed: ${insertError.message})` });
